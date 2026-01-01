@@ -22,15 +22,15 @@ jobs:
           cache: 'gradle'
 
       - name: Grant Execute Permission for Gradlew
-        run: chmod +x PaprikaAndroid/gradlew
+        run: chmod +x ./gradlew
 
       - name: Build with Gradle
-        working-directory: PaprikaAndroid
+        working-directory: .
         run: ./gradlew assembleRelease
 
       - name: Rename APK
         run: |
-          mv PaprikaAndroid/app/build/outputs/apk/release/app-release-unsigned.apk PaprikaAndroid/app/build/outputs/apk/release/PaprikaMessenger.apk
+          mv app/build/outputs/apk/release/app-release-unsigned.apk app/build/outputs/apk/release/PaprikaMessenger.apk
         continue-on-error: true # In case it's named differently or signed
 
       - name: Create Release
@@ -38,7 +38,7 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/')
         with:
           files: |
-            PaprikaAndroid/app/build/outputs/apk/release/*.apk
+            app/build/outputs/apk/release/*.apk
           draft: false
           prerelease: false
           generate_release_notes: true
