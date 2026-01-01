@@ -30,4 +30,4 @@ Modern, fast, and secure messenger client built with Kotlin and Jetpack Compose.
    - You can change the backend URL in the login/chat screen by tapping the "Paprika Chats" title 3 times (debug feature).
 
 ## License
-Attribution-NonCommercial-ShareAlike 4.0 International
+MIT
