@@ -13,5 +13,6 @@ data class MessageEntity(
     val type: String,
     val status: String,
     val createdAt: Long, // Timestamp
-    val isMe: Boolean // Computed field stored for convenience
+    val isMe: Boolean, // Computed field stored for convenience
+    val replyToId: Long? = null
 )

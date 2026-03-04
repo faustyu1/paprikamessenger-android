@@ -28,7 +28,7 @@ fun ChatListScreen(
     onSearchClick: () -> Unit, 
     onCreateGroupClick: () -> Unit,
     onProfileClick: () -> Unit,
-    viewModel: ChatListViewModel = androidx.lifecycle.viewmodel.compose.viewModel(),
+    viewModel: ChatListViewModel = androidx.hilt.navigation.compose.hiltViewModel(),
     onUrlChanged: (String) -> Unit
 ) {
     // Refresh chats whenever this screen is active/visible
@@ -201,91 +201,37 @@ fun ChatListScreen(
                 items(chats.sortedByDescending { it.last_message_at }) { chat ->
                     // Filter: Show only if it has a last message OR is the system chat (ID 1)
                     if (chat.last_message_at > 0 || chat.id == 1L) {
-                        ListItem(
-                            headlineContent = { Text(chat.title) },
-                            supportingContent = { 
-                                val preview = chat.last_message_preview ?: "No messages yet"
-                                if (preview.startsWith("/media/") || preview.startsWith("http")) {
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                        Icon(
-                                            imageVector = Icons.Filled.Image, 
-                                            contentDescription = "Image", 
-                                            modifier = Modifier.size(16.dp), 
-                                            tint = MaterialTheme.colorScheme.primary
-                                        )
-                                        Spacer(modifier = Modifier.width(4.dp))
-                                        Text("Photo", color = MaterialTheme.colorScheme.primary)
-                                    }
-                                } else {
-                                    Text(
-                                        text = preview,
-                                        maxLines = 1,
-                                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
-                                    ) 
-                                }
-                            },
-                            leadingContent = {
-                                val avatarUrl = chat.avatar.takeIf { it.isNotBlank() }?.let { av ->
-                                     if (av.startsWith("http")) av else ru.faustyu.paprika.data.network.NetworkModule.baseUrl.removeSuffix("/") + av
-                                }
+                        val avatarUrl = chat.avatar.takeIf { !it.isNullOrBlank() }?.let { av ->
+                             if (av.startsWith("http")) av else ru.faustyu.paprika.data.network.NetworkModule.baseUrl.removeSuffix("/") + av
+                        }
 
-                                if (avatarUrl != null) {
-                                    coil.compose.AsyncImage(
-                                        model = coil.request.ImageRequest.Builder(androidx.compose.ui.platform.LocalContext.current)
-                                            .data(avatarUrl)
-                                            .crossfade(true)
-                                            .build(),
-                                        contentDescription = "Avatar",
-                                        modifier = Modifier
-                                            .size(40.dp)
-                                            .clip(CircleShape),
-                                        contentScale = androidx.compose.ui.layout.ContentScale.Crop
-                                    )
-                                } else {
-                                    Surface(
-                                        shape = CircleShape,
-                                        color = MaterialTheme.colorScheme.primaryContainer,
-                                        modifier = Modifier.size(40.dp)
-                                    ) {
-                                        Box(contentAlignment = Alignment.Center) {
-                                            Text(chat.title.take(1).uppercase())
-                                        }
-                                    }
-                                }
-                            },
-                            trailingContent = {
-                                Column(horizontalAlignment = Alignment.End) {
-                                    // Time
-                                    val timeString = remember(chat.last_message_at) {
-                                         val instant = java.time.Instant.ofEpochSecond(chat.last_message_at)
-                                         val zoneId = java.time.ZoneId.systemDefault()
-                                         val formatter = java.time.format.DateTimeFormatter.ofPattern("HH:mm")
-                                         instant.atZone(zoneId).format(formatter)
-                                    }
-                                    Text(
-                                        text = timeString,
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                    
-                                    // Unread Badge
-                                    if (chat.unread_count > 0) {
-                                        Spacer(modifier = Modifier.height(4.dp))
-                                        Badge(
-                                            containerColor = MaterialTheme.colorScheme.primary,
-                                            contentColor = MaterialTheme.colorScheme.onPrimary
-                                        ) {
-                                            Text(chat.unread_count.toString())
-                                        }
-                                    }
-                                }
-                            },
-                            modifier = Modifier.clickable { 
+                        val timeString = remember(chat.last_message_at) {
+                             if (chat.last_message_at == 0L) return@remember ""
+                             val instant = java.time.Instant.ofEpochSecond(chat.last_message_at)
+                             val zoneId = java.time.ZoneId.systemDefault()
+                             val formatter = java.time.format.DateTimeFormatter.ofPattern("HH:mm")
+                             instant.atZone(zoneId).format(formatter)
+                        }
+
+                        ImprovedChatListItem(
+                            chat = ImprovedChatItemData(
+                                id = chat.id,
+                                title = chat.title,
+                                lastMessage = chat.last_message_preview ?: "No messages yet",
+                                lastMessageTime = timeString,
+                                avatarUrl = avatarUrl,
+                                unreadCount = chat.unread_count.toInt(),
+                                isOnline = false, // TODO: status from websocket
+                                isPinned = false,
+                                lastMessageType = if (chat.last_message_preview?.startsWith("/media/") == true) "photo" else "text",
+                                isVerified = chat.is_official
+                            ),
+                            onClick = { 
                                 val idStr = if (chat.id == 1L) "paprika_system" else chat.id.toString()
                                 onChatClick(idStr) 
-                            }
+                            },
+                            isBot = chat.is_bot
                         )
-                        Divider()
                     }
                 }
             }

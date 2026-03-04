@@ -26,9 +26,12 @@ import ru.faustyu.paprika.data.db.SearchHistoryEntity
 import ru.faustyu.paprika.data.network.NetworkModule
 import ru.faustyu.paprika.data.network.UserPublic
 
-class SearchViewModel(application: android.app.Application) : androidx.lifecycle.AndroidViewModel(application) {
-    private val db = DatabaseModule.provideDatabase(application)
-    private val historyDao = db.searchHistoryDao()
+@dagger.hilt.android.lifecycle.HiltViewModel
+class SearchViewModel @javax.inject.Inject constructor(
+    application: android.app.Application,
+    private val apiService: ru.faustyu.paprika.data.network.ApiService,
+    private val historyDao: ru.faustyu.paprika.data.db.SearchHistoryDao
+) : androidx.lifecycle.AndroidViewModel(application) {
 
     var query by mutableStateOf("")
     var users by mutableStateOf<List<UserPublic>>(emptyList())
@@ -64,7 +67,7 @@ class SearchViewModel(application: android.app.Application) : androidx.lifecycle
     private suspend fun performSearch(q: String) {
         isLoading = true
         try {
-            val response = NetworkModule.api.searchUsers(q)
+            val response = apiService.searchUsers(q)
             if (response.isSuccessful) {
                 users = response.body() ?: emptyList()
                 if (users.isNotEmpty()) {
@@ -101,7 +104,7 @@ class SearchViewModel(application: android.app.Application) : androidx.lifecycle
                     description = "",
                     recipient_id = user.id
                 )
-                val response = NetworkModule.api.createChat(request)
+                val response = apiService.createChat(request)
                 if (response.isSuccessful) {
                     val chat = response.body()
                     chat?.let {
@@ -123,7 +126,7 @@ class SearchViewModel(application: android.app.Application) : androidx.lifecycle
 fun SearchScreen(
     onBack: () -> Unit,
     onChatJoined: (String) -> Unit,
-    viewModel: SearchViewModel = androidx.lifecycle.viewmodel.compose.viewModel()
+    viewModel: SearchViewModel = androidx.hilt.navigation.compose.hiltViewModel()
 ) {
     Scaffold(
         topBar = {

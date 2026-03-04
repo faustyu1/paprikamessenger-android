@@ -24,14 +24,14 @@ import kotlinx.coroutines.launch
 import coil.compose.AsyncImage
 import ru.faustyu.paprika.data.network.UserPublic
 
-class UserProfileViewModel(application: android.app.Application) : androidx.lifecycle.AndroidViewModel(application) {
+@dagger.hilt.android.lifecycle.HiltViewModel
+class UserProfileViewModel @javax.inject.Inject constructor(
+    application: android.app.Application,
+    private val userDao: ru.faustyu.paprika.data.db.UserDao
+) : androidx.lifecycle.AndroidViewModel(application) {
     var user by mutableStateOf<UserPublic?>(null)
     var isLoading by mutableStateOf(false)
     
-    // DB access
-    private val db = ru.faustyu.paprika.data.db.DatabaseModule.provideDatabase(application)
-    private val userDao = db.userDao()
-
     fun loadUser(userId: String) {
         val uid = userId.toLongOrNull() ?: return
 
@@ -46,7 +46,9 @@ class UserProfileViewModel(application: android.app.Application) : androidx.life
                         last_name = it.lastName,
                         bio = it.bio,
                         avatar = it.avatar,
-                        public_key = "" // Not stored in local DB yet
+                        public_key = it.publicKey ?: "",
+                        is_online = it.isOnline,
+                        last_seen = it.lastSeen
                     )
                 }
             }
@@ -69,7 +71,10 @@ class UserProfileViewModel(application: android.app.Application) : androidx.life
                             firstName = body.first_name,
                             lastName = body.last_name,
                             bio = body.bio,
-                            avatar = body.avatar
+                            avatar = body.avatar,
+                            publicKey = body.public_key,
+                            isOnline = body.is_online,
+                            lastSeen = body.last_seen
                         ))
                     }
                 }
@@ -87,7 +92,7 @@ class UserProfileViewModel(application: android.app.Application) : androidx.life
 fun UserProfileScreen(
     userId: String,
     onBack: () -> Unit,
-    viewModel: UserProfileViewModel = viewModel()
+    viewModel: UserProfileViewModel = androidx.hilt.navigation.compose.hiltViewModel()
 ) {
     LaunchedEffect(userId) {
         viewModel.loadUser(userId)

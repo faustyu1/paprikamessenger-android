@@ -15,6 +15,14 @@ object NetworkModule {
     // Token for authenticated requests
     var authToken: String? = null
 
+    private var _managedPrefs: ru.faustyu.paprika.data.PrefsManager? = null
+
+    fun init(prefs: ru.faustyu.paprika.data.PrefsManager) {
+        _managedPrefs = prefs
+        baseUrl = prefs.backendUrl ?: baseUrl
+        authToken = prefs.token
+    }
+
     private val client by lazy {
         val logging = HttpLoggingInterceptor().apply {
             level = HttpLoggingInterceptor.Level.BODY
@@ -52,6 +60,7 @@ object NetworkModule {
         }
         baseUrl = newUrl
         _api = null // Invalidate existing instance
+        _managedPrefs?.backendUrl = newUrl
     }
     
     fun getCurrentUrl(): String = baseUrl

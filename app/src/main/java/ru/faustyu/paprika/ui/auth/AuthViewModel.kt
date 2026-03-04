@@ -1,20 +1,21 @@
 package ru.faustyu.paprika.ui.auth
 
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.setValue
-import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.launch
-import ru.faustyu.paprika.data.network.AuthRequest
-import ru.faustyu.paprika.data.network.NetworkModule
+import ru.faustyu.paprika.analytics.AnalyticsHelper
+import ru.faustyu.paprika.data.repository.AuthRepository
+import ru.faustyu.paprika.ui.base.BaseViewModel
+import ru.faustyu.paprika.util.Constants
+import ru.faustyu.paprika.util.CryptoManager
+import ru.faustyu.paprika.util.Result
+import javax.inject.Inject
 
-class AuthViewModel : ViewModel() {
-    var isLoading by mutableStateOf(false)
-        private set
-    
-    var error by mutableStateOf<String?>(null)
-        private set
+@HiltViewModel
+class AuthViewModel @Inject constructor(
+    private val authRepository: AuthRepository,
+    private val analyticsHelper: AnalyticsHelper
+) : BaseViewModel() {
 
     fun authenticate(
         isLogin: Boolean, 
@@ -25,57 +26,67 @@ class AuthViewModel : ViewModel() {
         onSuccess: (String) -> Unit
     ) {
         if (username.isBlank() || password.isBlank()) {
-            error = "Username and password cannot be empty"
+            showError("Username and password cannot be empty")
             return
         }
 
         if (!isLogin) {
             if (firstName.isBlank()) {
-                error = "First name is required"
+                showError("First name is required")
                 return
             }
-            if (password.length < 6) {
-                error = "Password must be at least 6 characters"
+            if (password.length < Constants.MIN_PASSWORD_LENGTH) {
+                showError("Password must be at least ${Constants.MIN_PASSWORD_LENGTH} characters")
                 return
             }
-            if (username.length < 3) {
-                error = "Username must be at least 3 characters"
+            if (username.length < Constants.MIN_USERNAME_LENGTH) {
+                showError("Username must be at least ${Constants.MIN_USERNAME_LENGTH} characters")
                 return
             }
             if (username.first().isDigit()) {
-                error = "Username cannot start with a number"
+                showError("Username cannot start with a number")
                 return
             }
         }
         
         viewModelScope.launch {
-            isLoading = true
-            error = null
-            try {
-                val api = NetworkModule.api
-                val request = AuthRequest(
-                    username = username, 
-                    password = password, 
-                    public_key = "dummy_pk_for_now",
-                    first_name = firstName,
-                    last_name = lastName
-                )
+            showLoading()
+            
+            val result = if (isLogin) {
+                authRepository.login(username, password)
+            } else {
+                // Generate real crypto keys for registration
+                CryptoManager.generateKeys()
+                val publicKey = CryptoManager.publicKey?.toString(16) ?: ""
                 
-                val response = if (isLogin) {
-                    api.login(request)
-                } else {
-                    api.register(request)
+                authRepository.register(
+                    username = username,
+                    password = password,
+                    firstName = firstName,
+                    lastName = lastName,
+                    publicKey = publicKey
+                )
+            }
+            
+            when (result) {
+                is Result.Success -> {
+                    hideLoading()
+                    
+                    // Track analytics event
+                    if (isLogin) {
+                        analyticsHelper.logLogin("email")
+                    } else {
+                        analyticsHelper.logSignUp("email")
+                    }
+                    
+                    onSuccess(result.data)
                 }
-
-                if (response.isSuccessful && response.body()?.token != null) {
-                    onSuccess(response.body()!!.token)
-                } else {
-                    error = response.body()?.error ?: "Authentication failed: ${response.code()}"
+                is Result.Error -> {
+                    showError(result.message ?: "Authentication failed")
                 }
-            } catch (e: Exception) {
-                error = "Network error: ${e.message}"
-            } finally {
-                isLoading = false
+                is Result.Loading -> {
+                    // Should not happen
+                }
             }
         }
     }

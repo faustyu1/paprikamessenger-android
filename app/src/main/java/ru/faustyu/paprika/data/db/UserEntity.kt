@@ -11,5 +11,8 @@ data class UserEntity(
     val lastName: String?,
     val bio: String?,
     val avatar: String?,
+    val publicKey: String?,
+    val isOnline: Boolean,
+    val lastSeen: Long,
     val lastUpdated: Long = System.currentTimeMillis()
 )

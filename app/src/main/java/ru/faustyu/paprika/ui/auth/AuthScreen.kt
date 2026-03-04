@@ -11,9 +11,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Settings
 
+import androidx.hilt.navigation.compose.hiltViewModel
+
 @Composable
 fun AuthScreen(
-    viewModel: AuthViewModel = androidx.lifecycle.viewmodel.compose.viewModel(),
+    viewModel: AuthViewModel = hiltViewModel(),
     onLoginSuccess: (String) -> Unit,
     onUrlChanged: (String) -> Unit
 ) {

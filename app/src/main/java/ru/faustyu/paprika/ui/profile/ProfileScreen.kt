@@ -29,7 +29,10 @@ import kotlinx.coroutines.launch
 import coil.compose.AsyncImage
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
 
-class ProfileViewModel : ViewModel() {
+@dagger.hilt.android.lifecycle.HiltViewModel
+class ProfileViewModel @javax.inject.Inject constructor(
+    private val apiService: ru.faustyu.paprika.data.network.ApiService
+) : ViewModel() {
     var username by mutableStateOf("")
     var firstName by mutableStateOf("")
     var lastName by mutableStateOf("")
@@ -49,7 +52,7 @@ class ProfileViewModel : ViewModel() {
         viewModelScope.launch {
             isLoading = true
             try {
-                val response = ru.faustyu.paprika.data.network.NetworkModule.api.getMyProfile()
+                val response = apiService.getMyProfile()
                 if (response.isSuccessful) {
                     response.body()?.let { user ->
                         username = user.username
@@ -102,7 +105,7 @@ class ProfileViewModel : ViewModel() {
                     last_name = newLastName,
                     bio = newBio
                 )
-                val response = ru.faustyu.paprika.data.network.NetworkModule.api.updateProfile(request)
+                val response = apiService.updateProfile(request)
                 if (response.isSuccessful) {
                     val user = response.body()
                     user?.let {
@@ -134,7 +137,7 @@ class ProfileViewModel : ViewModel() {
                      val requestFile = okhttp3.RequestBody.create(mediaType, bytes)
                      val body = okhttp3.MultipartBody.Part.createFormData("avatar", "avatar.jpg", requestFile)
                      
-                     val response = ru.faustyu.paprika.data.network.NetworkModule.api.uploadAvatar(body)
+                     val response = apiService.uploadAvatar(body)
                      if (response.isSuccessful) {
                          val user = response.body()
                          // Force URL refreshing by appending timestamp
@@ -159,7 +162,7 @@ class ProfileViewModel : ViewModel() {
 fun ProfileScreen(
     onBack: () -> Unit,
     onLogout: () -> Unit,
-    viewModel: ProfileViewModel = viewModel()
+    viewModel: ProfileViewModel = androidx.hilt.navigation.compose.hiltViewModel()
 ) {
     val context = LocalContext.current
     

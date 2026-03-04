@@ -10,5 +10,5 @@ data class StoryEntity(
     val mediaUrl: String,
     val mediaType: String,
     val caption: String,
-    val expiresAt: String
+    val expiresAt: Long
 )

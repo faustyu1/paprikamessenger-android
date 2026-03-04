@@ -23,12 +23,13 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import androidx.compose.ui.draw.rotate
 import ru.faustyu.paprika.data.network.Story
 
 @Composable
 fun StoriesBar(
     onStoryClick: (Story) -> Unit,
-    viewModel: StoriesViewModel = androidx.lifecycle.viewmodel.compose.viewModel()
+    viewModel: StoriesViewModel = androidx.hilt.navigation.compose.hiltViewModel()
 ) {
     LaunchedEffect(Unit) {
         viewModel.loadStories()
@@ -37,6 +38,8 @@ fun StoriesBar(
     var showCreateDialog by remember { mutableStateOf(false) }
     var selectedMediaUri by remember { mutableStateOf<android.net.Uri?>(null) }
     var mediaType by remember { mutableStateOf("image") } // "image" or "video"
+
+    var viewedStory by remember { mutableStateOf<Story?>(null) }
 
     val pickImageLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
         androidx.activity.result.contract.ActivityResultContracts.GetContent()
@@ -53,14 +56,26 @@ fun StoriesBar(
             mediaType = mediaType,
             onDismiss = { showCreateDialog = false },
             onPublish = { caption ->
-                // In a real app, we'd upload to S3 first. 
-                // For now, we'll pass the uri string as a placeholder or mock the upload.
-                // Since the request asks for S3, I'll assume the viewModel.createStory handles or will handle the upload logic.
-                // For this demo, I'll mock the URL.
                 viewModel.createStory(selectedMediaUri.toString(), mediaType, caption)
                 showCreateDialog = false
             }
         )
+    }
+
+    val chatViewModel: ru.faustyu.paprika.ui.chat.ChatViewModel = androidx.hilt.navigation.compose.hiltViewModel()
+
+    if (viewedStory != null) {
+        val storyIndex = viewModel.stories.indexOfFirst { it.id == viewedStory!!.id }
+        if (storyIndex >= 0) {
+            TelegramStoryViewer(
+                stories = viewModel.stories,
+                initialStoryIndex = storyIndex,
+                onDismiss = { viewedStory = null },
+                onSendReply = { story, text ->
+                    chatViewModel.sendStoryComment(story, text)
+                }
+            )
+        }
     }
 
     LazyRow(
@@ -79,7 +94,7 @@ fun StoriesBar(
         }
 
         items(viewModel.stories) { story ->
-            StoryItem(story, onStoryClick)
+            StoryItem(story, onClick = { viewedStory = it })
         }
     }
 }
@@ -229,10 +244,75 @@ fun StoryItem(story: ru.faustyu.paprika.data.network.Story, onClick: (ru.faustyu
             }
         }
         Text(
-            text = "User ${story.user_id}",
+            text = story.user?.username ?: "User ${story.user_id}",
             style = MaterialTheme.typography.labelSmall,
             maxLines = 1,
             overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
         )
+    }
+}
+
+@Composable
+fun StoryViewDialog(
+    story: Story,
+    onDismiss: () -> Unit
+) {
+    val imageUrl = remember(story.media_url) {
+        if (story.media_url.startsWith("http")) story.media_url 
+        else ru.faustyu.paprika.data.network.NetworkModule.baseUrl.removeSuffix("/") + story.media_url
+    }
+
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        Surface(
+            modifier = Modifier.fillMaxSize(),
+            color = Color.Black
+        ) {
+            Box(modifier = Modifier.fillMaxSize()) {
+                // Media
+                coil.compose.AsyncImage(
+                    model = imageUrl,
+                    contentDescription = null,
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = androidx.compose.ui.layout.ContentScale.Fit
+                )
+
+                // Header
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp)
+                        .background(
+                            Brush.verticalGradient(listOf(Color.Black.copy(0.5f), Color.Transparent))
+                        ),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        story.user?.username ?: "User ${story.user_id}",
+                        color = Color.White,
+                        style = MaterialTheme.typography.titleMedium
+                    )
+                    Spacer(modifier = Modifier.weight(1f))
+                    IconButton(onClick = onDismiss) {
+                        Icon(androidx.compose.material.icons.Icons.Default.Add, null, tint = Color.White, modifier = Modifier.rotate(45f))
+                    }
+                }
+
+                // Caption
+                if (!story.caption.isNullOrBlank()) {
+                    Text(
+                        text = story.caption,
+                        color = Color.White,
+                        modifier = Modifier
+                            .align(Alignment.BottomCenter)
+                            .padding(bottom = 48.dp, start = 16.dp, end = 16.dp)
+                            .background(Color.Black.copy(0.4f), RoundedCornerShape(8.dp))
+                            .padding(8.dp)
+                    )
+                }
+            }
+        }
     }
 }

@@ -11,7 +11,10 @@ import kotlinx.coroutines.launch
 import ru.faustyu.paprika.data.network.CreateChatRequest
 import ru.faustyu.paprika.data.network.NetworkModule
 
-class CreateGroupViewModel : ViewModel() {
+@dagger.hilt.android.lifecycle.HiltViewModel
+class CreateGroupViewModel @javax.inject.Inject constructor(
+    private val apiService: ru.faustyu.paprika.data.network.ApiService
+) : ViewModel() {
     var title by mutableStateOf("")
     var description by mutableStateOf("")
     var isChannel by mutableStateOf(false)
@@ -24,7 +27,7 @@ class CreateGroupViewModel : ViewModel() {
                 // Type 1 = Group, 2 = Channel
                 val type = if (isChannel) 2 else 1
                 val request = CreateChatRequest(type, title, description)
-                val response = NetworkModule.api.createChat(request)
+                val response = apiService.createChat(request)
                 if (response.isSuccessful) {
                     onSuccess()
                 }
@@ -42,7 +45,7 @@ class CreateGroupViewModel : ViewModel() {
 fun CreateGroupScreen(
     onBack: () -> Unit,
     onSuccess: () -> Unit,
-    viewModel: CreateGroupViewModel = androidx.lifecycle.viewmodel.compose.viewModel()
+    viewModel: CreateGroupViewModel = androidx.hilt.navigation.compose.hiltViewModel()
 ) {
     Scaffold(
         topBar = {

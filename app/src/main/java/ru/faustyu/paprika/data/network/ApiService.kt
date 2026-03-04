@@ -53,6 +53,14 @@ interface ApiService {
     @retrofit2.http.Multipart
     suspend fun uploadMedia(@retrofit2.http.Part file: okhttp3.MultipartBody.Part): Response<Map<String, String>>
 
+    @POST("/user/voice/upload")
+    @retrofit2.http.Multipart
+    suspend fun uploadVoice(@retrofit2.http.Part file: okhttp3.MultipartBody.Part): Response<Map<String, String>>
+
+    @POST("/user/video_circle/upload")
+    @retrofit2.http.Multipart
+    suspend fun uploadVideoCircle(@retrofit2.http.Part file: okhttp3.MultipartBody.Part): Response<Map<String, String>>
+
     @POST("/me/profile")
     suspend fun updateProfile(@Body request: UpdateProfileRequest): Response<UserPublic>
 
@@ -76,6 +84,12 @@ interface ApiService {
     suspend fun addChatMember(@retrofit2.http.Path("id") id: String, @Body request: AddMemberRequest): Response<Unit>
     @POST("/chats/{id}/read")
     suspend fun markChatRead(@retrofit2.http.Path("id") id: String): Response<Unit>
+
+    @retrofit2.http.DELETE("/messages/{id}")
+    suspend fun deleteMessage(@retrofit2.http.Path("id") id: String): Response<Unit>
+
+    @retrofit2.http.PUT("/messages/{id}")
+    suspend fun editMessage(@retrofit2.http.Path("id") id: String, @Body request: SendMessageDto): Response<MessageDto>
 }
 
 data class ChatDto(
@@ -90,7 +104,9 @@ data class ChatDto(
     val members_count: Long = 0,
     val online_count: Long = 0,
     val other_user_id: Long = 0,
-    val unread_count: Long = 0
+    val unread_count: Long = 0,
+    val is_official: Boolean = false,
+    val is_bot: Boolean = false
 )
 
 data class MessageDto(
@@ -100,12 +116,15 @@ data class MessageDto(
     val content: String,
     val type: String,
     val status: String,
-    val created_at: String
+    val created_at: String,
+    val reply_to_id: Long? = null
 )
 
 data class SendMessageDto(
     val content: String,
-    val type: String = "text"
+    val type: String = "text",
+    val reply_to_id: Long? = null,
+    val story_id: Long? = null
 )
 
 data class UpdateProfileRequest(
@@ -122,10 +141,11 @@ data class AddMemberRequest(
 data class Story(
     val id: Long,
     val user_id: Long,
+    val user: UserPublic? = null,
     val media_url: String,
     val media_type: String,
     val caption: String,
-    val expires_at: String
+    val expires_at: Long
 )
 
 data class CreateStoryRequest(

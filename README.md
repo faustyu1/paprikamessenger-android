@@ -29,5 +29,17 @@ Modern, fast, and secure messenger client built with Kotlin and Jetpack Compose.
    - By default, it connects to `http://10.0.2.2:8080` (Standard Android Emulator localhost).
    - You can change the backend URL in the login/chat screen by tapping the "Paprika Chats" title 3 times (debug feature).
 
+## CI/CD
+
+The GitHub Actions workflow (`.github/workflows/android.yml`) is triggered when a version tag is pushed. For example, to trigger a build for version `1.1.2`:
+
+```bash
+git pull            # optional, fetch latest changes
+git tag v1.1.2      # create a version tag
+git push origin v1.1.2
+```
+
+After pushing the tag, the **Android CI/CD** workflow will start in the **Actions** tab on GitHub, building the Android APK and creating a release with the generated artifact.
+
 ## License
 Attribution-NonCommercial-ShareAlike 4.0 International
