@@ -51,7 +51,7 @@ import ru.faustyu.paprika.util.GitHubRelease
 import ru.faustyu.paprika.util.UpdateChecker
 import java.security.MessageDigest
 
-class MainActivity : ComponentActivity() {
+class MainActivity : androidx.appcompat.app.AppCompatActivity() {
 
     private var downloadId = -1L
 

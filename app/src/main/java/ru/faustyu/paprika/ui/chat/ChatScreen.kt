@@ -909,15 +909,16 @@ private fun MessageBubble(
                             }
 
                             "gif" -> {
-                                val gifLoader = remember {
-                                    ImageLoader.Builder(LocalContext.current)
+                                val gifContext = LocalContext.current
+                                val gifLoader = remember(gifContext) {
+                                    ImageLoader.Builder(gifContext)
                                         .components { add(GifDecoder.Factory()) }
                                         .build()
                                 }
                                 val gifUrl = if (message.content.startsWith("http")) message.content
                                              else ru.faustyu.paprika.data.network.NetworkModule.baseUrl.removeSuffix("/") + message.content
                                 AsyncImage(
-                                    model = coil.request.ImageRequest.Builder(LocalContext.current)
+                                    model = coil.request.ImageRequest.Builder(gifContext)
                                         .data(gifUrl).crossfade(false).build(),
                                     imageLoader = gifLoader,
                                     contentDescription = "GIF",
@@ -962,13 +963,21 @@ private fun MessageBubble(
                                         Text("Опрос", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
                                     }
                                     Spacer(Modifier.height(4.dp))
-                                    try {
-                                        val pollData = com.google.gson.Gson().fromJson(message.content, com.google.gson.JsonObject::class.java)
+                                    val pollData = remember(message.content) {
+                                        try { com.google.gson.Gson().fromJson(message.content, com.google.gson.JsonObject::class.java) }
+                                        catch (_: Exception) { null }
+                                    }
+                                    if (pollData != null) {
                                         Text(pollData.get("question")?.asString ?: message.content, style = MaterialTheme.typography.bodyMedium)
-                                        val options = pollData.getAsJsonArray("options")
-                                        options?.forEach { opt ->
-                                            val optObj = opt.asJsonObject
-                                            val optText = optObj.get("text")?.asString ?: opt.asString
+                                        val options = remember(pollData) {
+                                            runCatching {
+                                                val arr = pollData.getAsJsonArray("options")
+                                                (0 until arr.size()).map { arr[it].asJsonObject }
+                                            }.getOrDefault(emptyList())
+                                        }
+                                        options.forEach { optObj ->
+                                            val optText = optObj.get("text")?.asString ?: ""
+                                            val votes = optObj.get("votes_count")?.asLong ?: 0L
                                             Row(
                                                 modifier = Modifier
                                                     .fillMaxWidth()
@@ -979,11 +988,10 @@ private fun MessageBubble(
                                                 verticalAlignment = Alignment.CenterVertically
                                             ) {
                                                 Text(optText, style = MaterialTheme.typography.bodySmall, modifier = Modifier.weight(1f))
-                                                val votes = optObj.get("votes_count")?.asLong ?: 0L
                                                 if (votes > 0) Text("$votes", style = MaterialTheme.typography.labelSmall)
                                             }
                                         }
-                                    } catch (e: Exception) {
+                                    } else {
                                         Text(message.content)
                                     }
                                 }
