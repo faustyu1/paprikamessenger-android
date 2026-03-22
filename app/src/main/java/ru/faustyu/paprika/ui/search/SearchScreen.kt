@@ -15,8 +15,10 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
+import ru.faustyu.paprika.R
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -132,7 +134,7 @@ fun SearchScreen(
                     TextField(
                         value = viewModel.query,
                         onValueChange = viewModel::onQueryChange,
-                        placeholder = { Text("Search users...") },
+                        placeholder = { Text(stringResource(R.string.search_placeholder)) },
                         colors = TextFieldDefaults.colors(
                             focusedContainerColor = MaterialTheme.colorScheme.surface,
                             unfocusedContainerColor = MaterialTheme.colorScheme.surface,
@@ -151,7 +153,7 @@ fun SearchScreen(
                 },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.search_back))
                     }
                 }
             )
@@ -171,9 +173,9 @@ fun SearchScreen(
                                 .padding(16.dp),
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
-                            Text("Recent Searches", style = MaterialTheme.typography.titleSmall)
+                            Text(stringResource(R.string.search_recent), style = MaterialTheme.typography.titleSmall)
                             Text(
-                                "Clear", 
+                                stringResource(R.string.search_clear),
                                 color = MaterialTheme.colorScheme.primary,
                                 modifier = Modifier.clickable { viewModel.clearHistory() }
                             )

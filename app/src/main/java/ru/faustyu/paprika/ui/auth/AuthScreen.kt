@@ -5,11 +5,13 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Settings
+import ru.faustyu.paprika.R
 
 @Composable
 fun AuthScreen(
@@ -25,7 +27,6 @@ fun AuthScreen(
     var showUrlDialog by remember { mutableStateOf(false) }
 
     Box(modifier = Modifier.fillMaxSize()) {
-        // Settings Button for Custom Backend URL
         IconButton(
             onClick = { showUrlDialog = true },
             modifier = Modifier
@@ -33,8 +34,8 @@ fun AuthScreen(
                 .padding(16.dp)
         ) {
             Icon(
-                imageVector = Icons.Default.Settings, 
-                contentDescription = "Server Settings"
+                imageVector = Icons.Default.Settings,
+                contentDescription = stringResource(R.string.auth_server_settings)
             )
         }
 
@@ -46,11 +47,11 @@ fun AuthScreen(
             verticalArrangement = Arrangement.Center
         ) {
             Text(
-                text = if (isLogin) "Paprika Login" else "Join Paprika",
+                text = if (isLogin) stringResource(R.string.auth_title_login) else stringResource(R.string.auth_title_register),
                 style = MaterialTheme.typography.displayMedium,
                 color = MaterialTheme.colorScheme.primary
             )
-            
+
             Spacer(modifier = Modifier.height(32.dp))
 
             if (viewModel.error != null) {
@@ -62,12 +63,11 @@ fun AuthScreen(
                 Spacer(modifier = Modifier.height(16.dp))
             }
 
-
             if (!isLogin) {
                 OutlinedTextField(
                     value = firstName,
                     onValueChange = { firstName = it },
-                    label = { Text("First Name *") },
+                    label = { Text(stringResource(R.string.auth_first_name)) },
                     modifier = Modifier.fillMaxWidth(),
                     enabled = !viewModel.isLoading,
                     singleLine = true
@@ -78,7 +78,7 @@ fun AuthScreen(
                 OutlinedTextField(
                     value = lastName,
                     onValueChange = { lastName = it },
-                    label = { Text("Last Name (Optional)") },
+                    label = { Text(stringResource(R.string.auth_last_name)) },
                     modifier = Modifier.fillMaxWidth(),
                     enabled = !viewModel.isLoading,
                     singleLine = true
@@ -90,10 +90,10 @@ fun AuthScreen(
             OutlinedTextField(
                 value = username,
                 onValueChange = { username = it },
-                label = { Text(if (isLogin) "Username" else "Choose unique username") },
+                label = { Text(if (isLogin) stringResource(R.string.auth_username_login) else stringResource(R.string.auth_username_register)) },
                 supportingText = {
                     if (!isLogin) {
-                        Text("This will be your unique handle (e.g. @paprika_fan)")
+                        Text(stringResource(R.string.auth_username_hint))
                     }
                 },
                 modifier = Modifier.fillMaxWidth(),
@@ -105,7 +105,7 @@ fun AuthScreen(
             OutlinedTextField(
                 value = password,
                 onValueChange = { password = it },
-                label = { Text("Password") },
+                label = { Text(stringResource(R.string.auth_password)) },
                 visualTransformation = PasswordVisualTransformation(),
                 modifier = Modifier.fillMaxWidth(),
                 enabled = !viewModel.isLoading
@@ -114,10 +114,10 @@ fun AuthScreen(
             Spacer(modifier = Modifier.height(24.dp))
 
             Button(
-                onClick = { 
+                onClick = {
                     viewModel.authenticate(isLogin, username, password, firstName, lastName, onSuccess = { token ->
                         onLoginSuccess(token)
-                    }) 
+                    })
                 },
                 modifier = Modifier.fillMaxWidth(),
                 enabled = !viewModel.isLoading
@@ -125,30 +125,30 @@ fun AuthScreen(
                 if (viewModel.isLoading) {
                     CircularProgressIndicator(modifier = Modifier.size(24.dp), color = MaterialTheme.colorScheme.onPrimary)
                 } else {
-                    Text(if (isLogin) "Sign In" else "Sign Up")
+                    Text(if (isLogin) stringResource(R.string.auth_sign_in) else stringResource(R.string.auth_sign_up))
                 }
             }
 
             Spacer(modifier = Modifier.height(16.dp))
 
             TextButton(onClick = { isLogin = !isLogin }, enabled = !viewModel.isLoading) {
-                Text(if (isLogin) "Don't have an account? Sign Up" else "Already have an account? Sign In")
+                Text(if (isLogin) stringResource(R.string.auth_no_account) else stringResource(R.string.auth_have_account))
             }
         }
-        
+
         if (showUrlDialog) {
             var tempUrl by remember { mutableStateOf(ru.faustyu.paprika.data.network.NetworkModule.getCurrentUrl()) }
             AlertDialog(
                 onDismissRequest = { showUrlDialog = false },
-                title = { Text("Server URL") },
+                title = { Text(stringResource(R.string.auth_server_url_title)) },
                 text = {
                     Column {
-                        Text("Enter backend address:")
+                        Text(stringResource(R.string.auth_server_url_text))
                         Spacer(modifier = Modifier.height(8.dp))
                         OutlinedTextField(
                             value = tempUrl,
                             onValueChange = { tempUrl = it },
-                            placeholder = { Text("http://192.168.1.5:8080") },
+                            placeholder = { Text(stringResource(R.string.auth_server_url_placeholder)) },
                             singleLine = true
                         )
                     }
@@ -159,12 +159,12 @@ fun AuthScreen(
                         onUrlChanged(tempUrl)
                         showUrlDialog = false
                     }) {
-                        Text("Save")
+                        Text(stringResource(R.string.common_save))
                     }
                 },
                 dismissButton = {
                     TextButton(onClick = { showUrlDialog = false }) {
-                        Text("Cancel")
+                        Text(stringResource(R.string.common_cancel))
                     }
                 }
             )

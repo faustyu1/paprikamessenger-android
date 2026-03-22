@@ -18,6 +18,8 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.res.stringResource
+import ru.faustyu.paprika.R
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -181,10 +183,10 @@ fun ProfileScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("My Profile") },
+                title = { Text(stringResource(R.string.profile_title)) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.Filled.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.Filled.ArrowBack, contentDescription = stringResource(R.string.profile_back))
                     }
                 }
             )
@@ -237,7 +239,7 @@ fun ProfileScreen(
                 ) {
                     Icon(
                         Icons.Filled.Edit,
-                        contentDescription = "Edit Avatar",
+                        contentDescription = stringResource(R.string.profile_edit_avatar),
                         modifier = Modifier.size(16.dp),
                         tint = MaterialTheme.colorScheme.onPrimary
                     )
@@ -249,37 +251,37 @@ fun ProfileScreen(
             OutlinedTextField(
                 value = tempUsername,
                 onValueChange = { tempUsername = it },
-                label = { Text("Username") },
+                label = { Text(stringResource(R.string.profile_username)) },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth()
             )
-            
+
             Spacer(modifier = Modifier.height(16.dp))
-            
+
             OutlinedTextField(
                 value = tempFirstName,
                 onValueChange = { tempFirstName = it },
-                label = { Text("First Name") },
+                label = { Text(stringResource(R.string.profile_first_name)) },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth()
             )
-            
+
             Spacer(modifier = Modifier.height(16.dp))
-            
+
             OutlinedTextField(
                 value = tempLastName,
                 onValueChange = { tempLastName = it },
-                label = { Text("Last Name") },
+                label = { Text(stringResource(R.string.profile_last_name)) },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth()
             )
-            
+
             Spacer(modifier = Modifier.height(16.dp))
-            
+
             OutlinedTextField(
                 value = tempBio,
                 onValueChange = { tempBio = it },
-                label = { Text("Bio") },
+                label = { Text(stringResource(R.string.profile_bio)) },
                 minLines = 3,
                 maxLines = 5,
                 modifier = Modifier.fillMaxWidth()
@@ -297,7 +299,7 @@ fun ProfileScreen(
                 if (viewModel.isLoading) {
                     CircularProgressIndicator(modifier = Modifier.size(24.dp), color = MaterialTheme.colorScheme.onPrimary)
                 } else {
-                    Text("Save Changes")
+                    Text(stringResource(R.string.profile_save))
                 }
             }
             
@@ -308,7 +310,7 @@ fun ProfileScreen(
                 modifier = Modifier.fillMaxWidth(),
                 colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error)
             ) {
-                Text("Log Out")
+                Text(stringResource(R.string.profile_logout))
             }
         }
     }

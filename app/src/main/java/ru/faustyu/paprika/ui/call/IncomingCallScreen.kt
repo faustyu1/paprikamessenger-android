@@ -11,8 +11,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import ru.faustyu.paprika.R
 
 @Composable
 fun IncomingCallScreen(
@@ -55,7 +57,7 @@ fun IncomingCallScreen(
             )
 
             Text(
-                text = "Incoming ${if (callType == "video") "video" else "audio"} call...",
+                text = if (callType == "video") stringResource(R.string.call_incoming_video) else stringResource(R.string.call_incoming_audio),
                 style = MaterialTheme.typography.bodyLarge,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center
@@ -76,13 +78,13 @@ fun IncomingCallScreen(
                     ) {
                         Icon(
                             Icons.Filled.CallEnd,
-                            contentDescription = "Reject",
+                            contentDescription = stringResource(R.string.call_reject),
                             tint = Color.White,
                             modifier = Modifier.size(32.dp)
                         )
                     }
                     Spacer(modifier = Modifier.height(8.dp))
-                    Text("Reject", style = MaterialTheme.typography.labelLarge)
+                    Text(stringResource(R.string.call_reject), style = MaterialTheme.typography.labelLarge)
                 }
 
                 // Accept button
@@ -94,13 +96,13 @@ fun IncomingCallScreen(
                     ) {
                         Icon(
                             Icons.Filled.Call,
-                            contentDescription = "Accept",
+                            contentDescription = stringResource(R.string.call_accept),
                             tint = Color.White,
                             modifier = Modifier.size(32.dp)
                         )
                     }
                     Spacer(modifier = Modifier.height(8.dp))
-                    Text("Accept", style = MaterialTheme.typography.labelLarge)
+                    Text(stringResource(R.string.call_accept), style = MaterialTheme.typography.labelLarge)
                 }
             }
         }

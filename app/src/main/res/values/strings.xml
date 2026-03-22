@@ -1,3 +1,113 @@
 <resources>
     <string name="app_name">Paprika</string>
+
+    <!-- Auth -->
+    <string name="auth_title_login">Paprika Login</string>
+    <string name="auth_title_register">Join Paprika</string>
+    <string name="auth_first_name">First Name *</string>
+    <string name="auth_last_name">Last Name (Optional)</string>
+    <string name="auth_username_login">Username</string>
+    <string name="auth_username_register">Choose unique username</string>
+    <string name="auth_username_hint">This will be your unique handle (e.g. @paprika_fan)</string>
+    <string name="auth_password">Password</string>
+    <string name="auth_sign_in">Sign In</string>
+    <string name="auth_sign_up">Sign Up</string>
+    <string name="auth_no_account">Don\'t have an account? Sign Up</string>
+    <string name="auth_have_account">Already have an account? Sign In</string>
+    <string name="auth_server_settings">Server Settings</string>
+    <string name="auth_server_url_title">Server URL</string>
+    <string name="auth_server_url_text">Enter backend address:</string>
+    <string name="auth_server_url_placeholder">https://api.example.com</string>
+
+    <!-- Chat List -->
+    <string name="chatlist_title">Paprika Chats</string>
+    <string name="chatlist_search">Search</string>
+    <string name="chatlist_new_chat">New Chat</string>
+    <string name="chatlist_create_group">Create New Group</string>
+    <string name="chatlist_update_url">Update Backend URL</string>
+    <string name="chatlist_current_url">Current: </string>
+    <string name="chatlist_new_url">New URL</string>
+    <string name="chatlist_url_placeholder">https://…</string>
+    <string name="chatlist_my_avatar">My Avatar</string>
+    <string name="chatlist_view_profile">View my profile</string>
+    <string name="chatlist_no_messages">No messages yet</string>
+    <string name="chatlist_photo">Photo</string>
+    <string name="chatlist_avatar">Avatar</string>
+
+    <!-- Chat -->
+    <string name="chat_message_hint">Message</string>
+    <string name="chat_add_member">Add Member</string>
+    <string name="chat_clear_history">Clear History</string>
+    <string name="chat_back">Back</string>
+    <string name="chat_call">Call</string>
+    <string name="chat_more">More</string>
+    <string name="chat_attach">Attach</string>
+    <string name="chat_send">Send</string>
+    <string name="chat_voice_message">Voice message</string>
+    <string name="chat_video_circle">Video circle</string>
+    <string name="chat_cancel">Cancel</string>
+    <string name="chat_delete">Delete</string>
+    <string name="chat_send_voice">Send voice</string>
+    <string name="chat_play">Play</string>
+    <string name="chat_pause">Pause</string>
+    <string name="chat_search_user">Search User</string>
+    <string name="chat_close">Close</string>
+
+    <!-- Profile -->
+    <string name="profile_title">My Profile</string>
+    <string name="profile_back">Back</string>
+    <string name="profile_username">Username</string>
+    <string name="profile_first_name">First Name</string>
+    <string name="profile_last_name">Last Name</string>
+    <string name="profile_bio">Bio</string>
+    <string name="profile_save">Save Changes</string>
+    <string name="profile_logout">Log Out</string>
+    <string name="profile_edit_avatar">Edit Avatar</string>
+    <string name="profile_about">About</string>
+    <string name="profile_user_not_found">User not found</string>
+
+    <!-- Search -->
+    <string name="search_placeholder">Search users…</string>
+    <string name="search_back">Back</string>
+    <string name="search_recent">Recent Searches</string>
+    <string name="search_clear">Clear</string>
+
+    <!-- Group -->
+    <string name="group_new_title">New Group / Channel</string>
+    <string name="group_name">Title</string>
+    <string name="group_description">Description (Optional)</string>
+    <string name="group_is_channel">Is Channel?</string>
+    <string name="group_create">Create</string>
+
+    <!-- Stories -->
+    <string name="stories_photo">Photo</string>
+    <string name="stories_video">Video</string>
+    <string name="stories_caption_hint">Add a caption…</string>
+    <string name="stories_publish">Publish</string>
+    <string name="stories_add">Add</string>
+    <string name="stories_video_preview">Video Preview</string>
+
+    <!-- Calls -->
+    <string name="call_calling">Calling…</string>
+    <string name="call_mute">Mute</string>
+    <string name="call_unmute">Unmute</string>
+    <string name="call_end">End</string>
+    <string name="call_speaker">Speaker</string>
+    <string name="call_incoming_audio">Incoming audio call…</string>
+    <string name="call_incoming_video">Incoming video call…</string>
+    <string name="call_reject">Reject</string>
+    <string name="call_accept">Accept</string>
+
+    <!-- Update -->
+    <string name="update_title">Update available: %s</string>
+    <string name="update_message">A new version is available.</string>
+    <string name="update_button">Update</string>
+    <string name="update_open">Open</string>
+    <string name="update_later">Later</string>
+    <string name="update_downloading">Downloading update…</string>
+    <string name="update_download_title">Paprika %s</string>
+
+    <!-- Common -->
+    <string name="common_save">Save</string>
+    <string name="common_cancel">Cancel</string>
 </resources>

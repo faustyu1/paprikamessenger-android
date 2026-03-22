@@ -14,9 +14,11 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import ru.faustyu.paprika.R
 import ru.faustyu.paprika.data.network.Story
 
 data class ChatItem(val id: String, val name: String, val lastMessage: String)
@@ -53,16 +55,16 @@ fun ChatListScreen(
                 showUrlDialog = false 
                 debugTaps = 0
             },
-            title = { Text("Update Backend URL") },
+            title = { Text(stringResource(R.string.chatlist_update_url)) },
             text = {
                  Column {
-                     Text("Current: " + ru.faustyu.paprika.data.network.NetworkModule.baseUrl)
+                     Text(stringResource(R.string.chatlist_current_url) + ru.faustyu.paprika.data.network.NetworkModule.baseUrl)
                      Spacer(modifier = Modifier.height(8.dp))
                      OutlinedTextField(
                          value = tempUrl,
                          onValueChange = { tempUrl = it },
-                         label = { Text("New URL") },
-                         placeholder = { Text("http://...") }
+                         label = { Text(stringResource(R.string.chatlist_new_url)) },
+                         placeholder = { Text(stringResource(R.string.chatlist_url_placeholder)) }
                      )
                  }
             },
@@ -74,15 +76,15 @@ fun ChatListScreen(
                         debugTaps = 0
                     }
                 }) {
-                    Text("Save")
+                    Text(stringResource(R.string.common_save))
                 }
             },
             dismissButton = {
-                TextButton(onClick = { 
-                    showUrlDialog = false 
+                TextButton(onClick = {
+                    showUrlDialog = false
                     debugTaps = 0
                 }) {
-                    Text("Cancel")
+                    Text(stringResource(R.string.common_cancel))
                 }
             }
         )
@@ -92,9 +94,9 @@ fun ChatListScreen(
         snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
-                title = { 
+                title = {
                     Text(
-                        "Paprika Chats",
+                        stringResource(R.string.chatlist_title),
                         modifier = Modifier.clickable {
                             debugTaps++
                             if (debugTaps >= 3) {
@@ -109,7 +111,7 @@ fun ChatListScreen(
                 },
                 actions = {
                     IconButton(onClick = onSearchClick) {
-                        Icon(Icons.Filled.Search, contentDescription = "Search")
+                        Icon(Icons.Filled.Search, contentDescription = stringResource(R.string.chatlist_search))
                     }
                 }
             )
@@ -118,7 +120,7 @@ fun ChatListScreen(
             FloatingActionButton(onClick = { 
                 onSearchClick() 
             }) {
-                Icon(Icons.Filled.Edit, contentDescription = "New Chat")
+                Icon(Icons.Filled.Edit, contentDescription = stringResource(R.string.chatlist_new_chat))
             }
         }
     ) { padding ->
@@ -128,7 +130,7 @@ fun ChatListScreen(
                  onClick = onCreateGroupClick,
                  modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)
              ) {
-                 Text("Create New Group")
+                 Text(stringResource(R.string.chatlist_create_group))
              }
             // Stories Section
             ru.faustyu.paprika.ui.stories.StoriesBar(onStoryClick = { 
@@ -163,7 +165,7 @@ fun ChatListScreen(
                                             .data(avatarUrl)
                                             .crossfade(true)
                                             .build(),
-                                        contentDescription = "My Avatar",
+                                        contentDescription = stringResource(R.string.chatlist_my_avatar),
                                         modifier = Modifier
                                             .size(48.dp)
                                             .clip(CircleShape),
@@ -193,7 +195,7 @@ fun ChatListScreen(
                                         style = MaterialTheme.typography.titleMedium
                                     )
                                     Text(
-                                        text = "View my profile",
+                                        text = stringResource(R.string.chatlist_view_profile),
                                         style = MaterialTheme.typography.labelSmall,
                                         color = MaterialTheme.colorScheme.primary
                                     )
@@ -210,7 +212,8 @@ fun ChatListScreen(
                         ListItem(
                             headlineContent = { Text(chat.title) },
                             supportingContent = { 
-                                val preview = chat.last_message_preview ?: "No messages yet"
+                                val noMsg = stringResource(R.string.chatlist_no_messages)
+                                val preview = chat.last_message_preview ?: noMsg
                                 if (preview.startsWith("/media/") || preview.startsWith("http")) {
                                     Row(verticalAlignment = Alignment.CenterVertically) {
                                         Icon(
@@ -220,7 +223,7 @@ fun ChatListScreen(
                                             tint = MaterialTheme.colorScheme.primary
                                         )
                                         Spacer(modifier = Modifier.width(4.dp))
-                                        Text("Photo", color = MaterialTheme.colorScheme.primary)
+                                        Text(stringResource(R.string.chatlist_photo), color = MaterialTheme.colorScheme.primary)
                                     }
                                 } else {
                                     Text(
@@ -241,7 +244,7 @@ fun ChatListScreen(
                                             .data(avatarUrl)
                                             .crossfade(true)
                                             .build(),
-                                        contentDescription = "Avatar",
+                                        contentDescription = stringResource(R.string.chatlist_avatar),
                                         modifier = Modifier
                                             .size(40.dp)
                                             .clip(CircleShape),

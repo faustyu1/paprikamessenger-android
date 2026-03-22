@@ -13,9 +13,11 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.delay
+import ru.faustyu.paprika.R
 
 @Composable
 fun CallScreen(
@@ -68,7 +70,7 @@ fun CallScreen(
             )
 
             Text(
-                text = if (isOutgoing) "Calling..." else formatDuration(durationSeconds),
+                text = if (isOutgoing) stringResource(R.string.call_calling) else formatDuration(durationSeconds),
                 style = MaterialTheme.typography.bodyLarge,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -91,12 +93,12 @@ fun CallScreen(
                     ) {
                         Icon(
                             if (isMuted) Icons.Filled.MicOff else Icons.Filled.Mic,
-                            contentDescription = if (isMuted) "Unmute" else "Mute",
+                            contentDescription = if (isMuted) stringResource(R.string.call_unmute) else stringResource(R.string.call_mute),
                             modifier = Modifier.size(24.dp)
                         )
                     }
                     Spacer(modifier = Modifier.height(4.dp))
-                    Text(if (isMuted) "Unmute" else "Mute", style = MaterialTheme.typography.labelSmall)
+                    Text(if (isMuted) stringResource(R.string.call_unmute) else stringResource(R.string.call_mute), style = MaterialTheme.typography.labelSmall)
                 }
 
                 // End call button
@@ -108,13 +110,13 @@ fun CallScreen(
                     ) {
                         Icon(
                             Icons.Filled.CallEnd,
-                            contentDescription = "End call",
+                            contentDescription = stringResource(R.string.call_end),
                             tint = Color.White,
                             modifier = Modifier.size(32.dp)
                         )
                     }
                     Spacer(modifier = Modifier.height(4.dp))
-                    Text("End", style = MaterialTheme.typography.labelLarge)
+                    Text(stringResource(R.string.call_end), style = MaterialTheme.typography.labelLarge)
                 }
 
                 // Speaker placeholder (no-op for now)
@@ -126,12 +128,12 @@ fun CallScreen(
                     ) {
                         Icon(
                             Icons.Filled.VolumeUp,
-                            contentDescription = "Speaker",
+                            contentDescription = stringResource(R.string.call_speaker),
                             modifier = Modifier.size(24.dp)
                         )
                     }
                     Spacer(modifier = Modifier.height(4.dp))
-                    Text("Speaker", style = MaterialTheme.typography.labelSmall)
+                    Text(stringResource(R.string.call_speaker), style = MaterialTheme.typography.labelSmall)
                 }
             }
         }

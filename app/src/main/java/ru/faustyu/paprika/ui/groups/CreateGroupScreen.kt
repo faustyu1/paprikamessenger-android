@@ -4,7 +4,9 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import ru.faustyu.paprika.R
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.launch
@@ -47,7 +49,7 @@ fun CreateGroupScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("New Group / Channel") },
+                title = { Text(stringResource(R.string.group_new_title)) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         // Icon would be ArrowBack
@@ -66,14 +68,14 @@ fun CreateGroupScreen(
             OutlinedTextField(
                 value = viewModel.title,
                 onValueChange = { viewModel.title = it },
-                label = { Text("Title") },
+                label = { Text(stringResource(R.string.group_name)) },
                 modifier = Modifier.fillMaxWidth()
             )
             Spacer(modifier = Modifier.height(16.dp))
             OutlinedTextField(
                 value = viewModel.description,
                 onValueChange = { viewModel.description = it },
-                label = { Text("Description (Optional)") },
+                label = { Text(stringResource(R.string.group_description)) },
                 modifier = Modifier.fillMaxWidth()
             )
             Spacer(modifier = Modifier.height(16.dp))
@@ -82,7 +84,7 @@ fun CreateGroupScreen(
                     checked = viewModel.isChannel,
                     onCheckedChange = { viewModel.isChannel = it }
                 )
-                Text("Is Channel?")
+                Text(stringResource(R.string.group_is_channel))
             }
             Spacer(modifier = Modifier.height(24.dp))
             Button(
@@ -93,7 +95,7 @@ fun CreateGroupScreen(
                 if (viewModel.isLoading) {
                     CircularProgressIndicator(modifier = Modifier.size(24.dp))
                 } else {
-                    Text("Create")
+                    Text(stringResource(R.string.group_create))
                 }
             }
         }

@@ -1,0 +1,113 @@
+<resources>
+    <string name="app_name">Paprika</string>
+
+    <!-- Auth -->
+    <string name="auth_title_login">Вход в Paprika</string>
+    <string name="auth_title_register">Регистрация в Paprika</string>
+    <string name="auth_first_name">Имя *</string>
+    <string name="auth_last_name">Фамилия (необязательно)</string>
+    <string name="auth_username_login">Имя пользователя</string>
+    <string name="auth_username_register">Выберите имя пользователя</string>
+    <string name="auth_username_hint">Ваш уникальный идентификатор (например, @paprika_fan)</string>
+    <string name="auth_password">Пароль</string>
+    <string name="auth_sign_in">Войти</string>
+    <string name="auth_sign_up">Зарегистрироваться</string>
+    <string name="auth_no_account">Нет аккаунта? Зарегистрироваться</string>
+    <string name="auth_have_account">Уже есть аккаунт? Войти</string>
+    <string name="auth_server_settings">Настройки сервера</string>
+    <string name="auth_server_url_title">Адрес сервера</string>
+    <string name="auth_server_url_text">Введите адрес сервера:</string>
+    <string name="auth_server_url_placeholder">https://api.example.com</string>
+
+    <!-- Chat List -->
+    <string name="chatlist_title">Paprika</string>
+    <string name="chatlist_search">Поиск</string>
+    <string name="chatlist_new_chat">Новый чат</string>
+    <string name="chatlist_create_group">Создать группу</string>
+    <string name="chatlist_update_url">Сменить адрес сервера</string>
+    <string name="chatlist_current_url">Текущий: </string>
+    <string name="chatlist_new_url">Новый адрес</string>
+    <string name="chatlist_url_placeholder">https://…</string>
+    <string name="chatlist_my_avatar">Мой аватар</string>
+    <string name="chatlist_view_profile">Мой профиль</string>
+    <string name="chatlist_no_messages">Нет сообщений</string>
+    <string name="chatlist_photo">Фото</string>
+    <string name="chatlist_avatar">Аватар</string>
+
+    <!-- Chat -->
+    <string name="chat_message_hint">Сообщение</string>
+    <string name="chat_add_member">Добавить участника</string>
+    <string name="chat_clear_history">Очистить историю</string>
+    <string name="chat_back">Назад</string>
+    <string name="chat_call">Звонок</string>
+    <string name="chat_more">Ещё</string>
+    <string name="chat_attach">Прикрепить</string>
+    <string name="chat_send">Отправить</string>
+    <string name="chat_voice_message">Голосовое сообщение</string>
+    <string name="chat_video_circle">Видеокружок</string>
+    <string name="chat_cancel">Отмена</string>
+    <string name="chat_delete">Удалить</string>
+    <string name="chat_send_voice">Отправить голосовое</string>
+    <string name="chat_play">Воспроизвести</string>
+    <string name="chat_pause">Пауза</string>
+    <string name="chat_search_user">Найти пользователя</string>
+    <string name="chat_close">Закрыть</string>
+
+    <!-- Profile -->
+    <string name="profile_title">Мой профиль</string>
+    <string name="profile_back">Назад</string>
+    <string name="profile_username">Имя пользователя</string>
+    <string name="profile_first_name">Имя</string>
+    <string name="profile_last_name">Фамилия</string>
+    <string name="profile_bio">О себе</string>
+    <string name="profile_save">Сохранить</string>
+    <string name="profile_logout">Выйти</string>
+    <string name="profile_edit_avatar">Изменить аватар</string>
+    <string name="profile_about">О пользователе</string>
+    <string name="profile_user_not_found">Пользователь не найден</string>
+
+    <!-- Search -->
+    <string name="search_placeholder">Поиск пользователей…</string>
+    <string name="search_back">Назад</string>
+    <string name="search_recent">Недавние поиски</string>
+    <string name="search_clear">Очистить</string>
+
+    <!-- Group -->
+    <string name="group_new_title">Новая группа / канал</string>
+    <string name="group_name">Название</string>
+    <string name="group_description">Описание (необязательно)</string>
+    <string name="group_is_channel">Это канал?</string>
+    <string name="group_create">Создать</string>
+
+    <!-- Stories -->
+    <string name="stories_photo">Фото</string>
+    <string name="stories_video">Видео</string>
+    <string name="stories_caption_hint">Добавить подпись…</string>
+    <string name="stories_publish">Опубликовать</string>
+    <string name="stories_add">Добавить</string>
+    <string name="stories_video_preview">Превью видео</string>
+
+    <!-- Calls -->
+    <string name="call_calling">Звоним…</string>
+    <string name="call_mute">Отключить микрофон</string>
+    <string name="call_unmute">Включить микрофон</string>
+    <string name="call_end">Завершить</string>
+    <string name="call_speaker">Громкоговоритель</string>
+    <string name="call_incoming_audio">Входящий аудиозвонок…</string>
+    <string name="call_incoming_video">Входящий видеозвонок…</string>
+    <string name="call_reject">Отклонить</string>
+    <string name="call_accept">Принять</string>
+
+    <!-- Update -->
+    <string name="update_title">Доступно обновление: %s</string>
+    <string name="update_message">Доступна новая версия приложения.</string>
+    <string name="update_button">Обновить</string>
+    <string name="update_open">Открыть</string>
+    <string name="update_later">Позже</string>
+    <string name="update_downloading">Загрузка обновления…</string>
+    <string name="update_download_title">Paprika %s</string>
+
+    <!-- Common -->
+    <string name="common_save">Сохранить</string>
+    <string name="common_cancel">Отмена</string>
+</resources>
