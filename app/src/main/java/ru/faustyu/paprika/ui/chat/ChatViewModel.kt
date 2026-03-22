@@ -10,12 +10,21 @@ import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import ru.faustyu.paprika.data.network.AppWebSocketManager
 import ru.faustyu.paprika.data.network.NetworkModule
 
+data class ReactionGroup(val emoji: String, val count: Int, val isMine: Boolean = false)
+
 data class Message(
+    val id: Long = 0,
     val content: String,
     val isMe: Boolean,
     val status: String = "sent",
     val timestamp: Long = 0,
-    val type: String = "text"
+    val type: String = "text",
+    val edited: Boolean = false,
+    val replyToContent: String? = null,
+    val replyToType: String? = null,
+    val replyToSenderId: Long? = null,
+    val forwardedFromName: String? = null,
+    val reactions: List<ReactionGroup> = emptyList()
 )
 
 class ChatViewModel(application: android.app.Application) : androidx.lifecycle.AndroidViewModel(application) {
@@ -34,8 +43,14 @@ class ChatViewModel(application: android.app.Application) : androidx.lifecycle.A
     var chatSubtitle = androidx.compose.runtime.mutableStateOf("loading...")
     var isGroup = androidx.compose.runtime.mutableStateOf(false)
     var snackbarMessage = androidx.compose.runtime.mutableStateOf<String?>(null)
+    var replyToMessage = androidx.compose.runtime.mutableStateOf<Message?>(null)
+    var typingText = androidx.compose.runtime.mutableStateOf("")
+    var pinnedMessage = androidx.compose.runtime.mutableStateOf<Message?>(null)
+    var isOwner = androidx.compose.runtime.mutableStateOf(false)
+    var isAdmin = androidx.compose.runtime.mutableStateOf(false)
 
     var searchResults = mutableStateListOf<ru.faustyu.paprika.data.network.UserPublic>()
+    val forwardChats = mutableStateListOf<ru.faustyu.paprika.data.network.ChatDto>()
 
     fun searchUsers(query: String) {
         viewModelScope.launch {
@@ -80,7 +95,7 @@ class ChatViewModel(application: android.app.Application) : androidx.lifecycle.A
             dao.getMessagesForChat(cid).collect { entities ->
                 _messages.clear()
                 entities.forEach { entity ->
-                    _messages.add(Message(entity.content, entity.isMe, entity.status, entity.createdAt, entity.type))
+                    _messages.add(Message(id = entity.id, content = entity.content, isMe = entity.isMe, status = entity.status, timestamp = entity.createdAt, type = entity.type))
                 }
             }
         }
@@ -94,6 +109,19 @@ class ChatViewModel(application: android.app.Application) : androidx.lifecycle.A
             } catch (e: Exception) {
                 e.printStackTrace()
             }
+        }
+
+        // Load chats for forwarding
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val chatsRes = NetworkModule.api.getChats()
+                if (chatsRes.isSuccessful) {
+                    chatsRes.body()?.let { list ->
+                        forwardChats.clear()
+                        forwardChats.addAll(list)
+                    }
+                }
+            } catch (_: Exception) {}
         }
 
         // Load Chat Details & History
@@ -110,7 +138,7 @@ class ChatViewModel(application: android.app.Application) : androidx.lifecycle.A
                             chatAvatar.value = chat.avatar
                             isGroup.value = (chat.type != 0)
                             if (isGroup.value) {
-                                chatSubtitle.value = "${chat.members_count} members"
+                                chatSubtitle.value = "${chat.members_count} участников"
                             } else {
                                 otherUserId.value = chat.other_user_id
                                 if (chat.other_user_id != 0L) {
@@ -128,6 +156,24 @@ class ChatViewModel(application: android.app.Application) : androidx.lifecycle.A
                 } else {
                     chatTitle.value = "System Messages"
                     chatSubtitle.value = "System"
+                }
+
+                // Load pinned message
+                if (chatId != "paprika_system") {
+                    try {
+                        val pinRes = NetworkModule.api.getPinnedMessage(chatId)
+                        if (pinRes.isSuccessful) {
+                            pinRes.body()?.let { dto ->
+                                pinnedMessage.value = Message(
+                                    id = dto.id,
+                                    content = dto.content,
+                                    isMe = (dto.sender_id == myUserId),
+                                    type = dto.type,
+                                    timestamp = try { java.time.Instant.parse(dto.created_at).epochSecond } catch (_: Exception) { 0L }
+                                )
+                            }
+                        }
+                    } catch (_: Exception) {}
                 }
 
                 val history = NetworkModule.api.getChatMessages(chatId)
@@ -151,34 +197,106 @@ class ChatViewModel(application: android.app.Application) : androidx.lifecycle.A
                         )
                     }
                     if (!entities.isNullOrEmpty()) dao.insertMessages(entities)
+
+                    // Load rich data (reactions, replies) into in-memory messages
+                    list?.forEach { dto ->
+                        val idx = _messages.indexOfFirst { it.id == dto.id }
+                        if (idx >= 0) {
+                            _messages[idx] = _messages[idx].copy(
+                                edited = dto.edited_at != null,
+                                replyToContent = dto.reply_to_message?.content,
+                                replyToType = dto.reply_to_message?.type,
+                                replyToSenderId = dto.reply_to_message?.sender_id,
+                                forwardedFromName = dto.forwarded_from_user?.let { u ->
+                                    if (!u.first_name.isNullOrBlank()) "${u.first_name} ${u.last_name ?: ""}".trim()
+                                    else u.username
+                                },
+                                reactions = dto.reactions.map { r -> ReactionGroup(r.emoji, r.count.toInt(), r.is_mine) }
+                            )
+                        }
+                    }
                 }
             } catch (e: Exception) {
                 snackbarMessage.value = "Не удалось загрузить сообщения"
             }
         }
 
-        // Listen for new messages via AppWebSocketManager
+        // Listen for events via AppWebSocketManager
         AppWebSocketManager.addListener("chat_vm_$cid") { event ->
             val type = event["event"] as? String ?: return@addListener
-            if (type == "message:new") {
-                val msgChatId = (event["chat_id"] as? Double)?.toLong() ?: return@addListener
-                if (msgChatId != cid) return@addListener
-                val content = event["content"] as? String ?: return@addListener
-                val senderId = (event["sender_id"] as? Double)?.toLong() ?: return@addListener
-                val msgId = (event["id"] as? Double)?.toLong() ?: System.currentTimeMillis()
-                val createdAt = (event["created_at"] as? Double)?.toLong() ?: (System.currentTimeMillis() / 1000)
-                val msgType = event["type"] as? String ?: "text"
-                val entity = ru.faustyu.paprika.data.db.MessageEntity(
-                    id = msgId,
-                    chatId = cid,
-                    senderId = senderId,
-                    content = content,
-                    type = msgType,
-                    status = "delivered",
-                    createdAt = createdAt,
-                    isMe = (senderId == myUserId)
-                )
-                viewModelScope.launch { dao.insertMessage(entity) }
+
+            when (type) {
+                "message:new" -> {
+                    val msgChatId = (event["chat_id"] as? Double)?.toLong() ?: return@addListener
+                    if (msgChatId != cid) return@addListener
+                    val content = event["content"] as? String ?: return@addListener
+                    val senderId = (event["sender_id"] as? Double)?.toLong() ?: return@addListener
+                    val msgId = (event["id"] as? Double)?.toLong() ?: System.currentTimeMillis()
+                    val createdAt = (event["created_at"] as? Double)?.toLong() ?: (System.currentTimeMillis() / 1000)
+                    val msgType = event["type"] as? String ?: "text"
+                    val entity = ru.faustyu.paprika.data.db.MessageEntity(
+                        id = msgId, chatId = cid, senderId = senderId, content = content,
+                        type = msgType, status = "delivered", createdAt = createdAt,
+                        isMe = (senderId == myUserId)
+                    )
+                    viewModelScope.launch { dao.insertMessage(entity) }
+                }
+
+                "message:deleted" -> {
+                    val msgChatId = (event["chat_id"] as? Double)?.toLong() ?: return@addListener
+                    if (msgChatId != cid) return@addListener
+                    val msgId = (event["message_id"] as? Double)?.toLong() ?: return@addListener
+                    viewModelScope.launch {
+                        val idx = _messages.indexOfFirst { it.id == msgId }
+                        if (idx >= 0) _messages.removeAt(idx)
+                        dao.deleteMessage(msgId)
+                    }
+                }
+
+                "user:typing" -> {
+                    val msgChatId = (event["chat_id"] as? Double)?.toLong() ?: return@addListener
+                    if (msgChatId != cid) return@addListener
+                    viewModelScope.launch {
+                        typingText.value = "печатает..."
+                        kotlinx.coroutines.delay(3000)
+                        typingText.value = ""
+                    }
+                }
+
+                "message:reaction" -> {
+                    val msgChatId = (event["chat_id"] as? Double)?.toLong() ?: return@addListener
+                    if (msgChatId != cid) return@addListener
+                    val msgId = (event["message_id"] as? Double)?.toLong() ?: return@addListener
+                    @Suppress("UNCHECKED_CAST")
+                    val rawReactions = event["reactions"] as? List<Map<String, Any>> ?: return@addListener
+                    val reactions = rawReactions.map { r ->
+                        ReactionGroup(
+                            emoji = r["emoji"] as? String ?: "",
+                            count = ((r["count"] as? Double)?.toInt() ?: 0)
+                        )
+                    }
+                    viewModelScope.launch {
+                        val idx = _messages.indexOfFirst { it.id == msgId }
+                        if (idx >= 0) _messages[idx] = _messages[idx].copy(reactions = reactions)
+                    }
+                }
+
+                "message:pinned" -> {
+                    val msgChatId = (event["chat_id"] as? Double)?.toLong() ?: return@addListener
+                    if (msgChatId != cid) return@addListener
+                    val msgId = (event["message_id"] as? Double)?.toLong() ?: return@addListener
+                    val content = event["message_content"] as? String ?: ""
+                    val msgType = event["message_type"] as? String ?: "text"
+                    viewModelScope.launch {
+                        pinnedMessage.value = Message(id = msgId, content = content, isMe = false, type = msgType)
+                    }
+                }
+
+                "message:unpinned" -> {
+                    val msgChatId = (event["chat_id"] as? Double)?.toLong() ?: return@addListener
+                    if (msgChatId != cid) return@addListener
+                    viewModelScope.launch { pinnedMessage.value = null }
+                }
             }
         }
     }
@@ -201,9 +319,11 @@ class ChatViewModel(application: android.app.Application) : androidx.lifecycle.A
                 )
                 val rowId = dao.insertMessage(tempMsg)
                 try {
+                    val replyId = replyToMessage.value?.id
+                    replyToMessage.value = null
                     val response = NetworkModule.api.sendMessage(
                         chatId,
-                        ru.faustyu.paprika.data.network.SendMessageDto(content = text)
+                        ru.faustyu.paprika.data.network.SendMessageDto(content = text, reply_to_message_id = replyId)
                     )
                     if (response.isSuccessful) {
                         response.body()?.let { serverMsg ->
@@ -318,6 +438,101 @@ class ChatViewModel(application: android.app.Application) : androidx.lifecycle.A
                 }
             } catch (e: Exception) {
                 snackbarMessage.value = "Не удалось отправить видео"
+            }
+        }
+    }
+
+    fun setReply(message: Message) { replyToMessage.value = message }
+    fun clearReply() { replyToMessage.value = null }
+
+    fun sendTyping(chatId: String) {
+        val cid = if (chatId == "paprika_system") 1L else chatId.toLongOrNull() ?: 0L
+        AppWebSocketManager.send(mapOf("event" to "user:typing", "chat_id" to cid))
+    }
+
+    fun deleteMessage(msgId: Long) {
+        viewModelScope.launch {
+            try {
+                NetworkModule.api.deleteMessage(msgId.toString())
+                val idx = _messages.indexOfFirst { it.id == msgId }
+                if (idx >= 0) _messages.removeAt(idx)
+                dao.deleteMessage(msgId)
+            } catch (e: Exception) {
+                snackbarMessage.value = "Не удалось удалить сообщение"
+            }
+        }
+    }
+
+    fun editMessage(msgId: Long, newContent: String) {
+        viewModelScope.launch {
+            try {
+                NetworkModule.api.editMessage(msgId.toString(), ru.faustyu.paprika.data.network.EditMessageRequest(newContent))
+                val idx = _messages.indexOfFirst { it.id == msgId }
+                if (idx >= 0) _messages[idx] = _messages[idx].copy(content = newContent, edited = true)
+            } catch (e: Exception) {
+                snackbarMessage.value = "Не удалось редактировать сообщение"
+            }
+        }
+    }
+
+    fun reactToMessage(msgId: Long, emoji: String) {
+        viewModelScope.launch {
+            try {
+                val idx = _messages.indexOfFirst { it.id == msgId }
+                if (idx < 0) return@launch
+                val existing = _messages[idx].reactions.find { it.emoji == emoji }
+                if (existing?.isMine == true) {
+                    NetworkModule.api.removeReaction(msgId, emoji)
+                } else {
+                    NetworkModule.api.addReaction(msgId, ru.faustyu.paprika.data.network.AddReactionRequest(emoji))
+                }
+                // Optimistic update
+                val reactions = _messages[idx].reactions.toMutableList()
+                val eIdx = reactions.indexOfFirst { it.emoji == emoji }
+                if (eIdx >= 0) {
+                    val r = reactions[eIdx]
+                    if (r.isMine) reactions[eIdx] = r.copy(count = (r.count - 1).coerceAtLeast(0), isMine = false)
+                    else reactions[eIdx] = r.copy(count = r.count + 1, isMine = true)
+                } else {
+                    reactions.add(ReactionGroup(emoji, 1, true))
+                }
+                _messages[idx] = _messages[idx].copy(reactions = reactions.filter { it.count > 0 })
+            } catch (e: Exception) {
+                snackbarMessage.value = "Ошибка реакции"
+            }
+        }
+    }
+
+    fun forwardMessage(msgId: Long, toChatId: Long) {
+        viewModelScope.launch {
+            try {
+                NetworkModule.api.forwardMessage(msgId.toString(), ru.faustyu.paprika.data.network.ForwardMessageRequest(toChatId))
+                snackbarMessage.value = "Сообщение переслано"
+            } catch (e: Exception) {
+                snackbarMessage.value = "Не удалось переслать"
+            }
+        }
+    }
+
+    fun pinMessage(chatId: String, msgId: Long) {
+        viewModelScope.launch {
+            try {
+                NetworkModule.api.pinMessage(chatId, ru.faustyu.paprika.data.network.PinMessageRequest(msgId))
+                val msg = _messages.find { it.id == msgId }
+                pinnedMessage.value = msg
+            } catch (e: Exception) {
+                snackbarMessage.value = "Не удалось закрепить сообщение"
+            }
+        }
+    }
+
+    fun unpinMessage(chatId: String) {
+        viewModelScope.launch {
+            try {
+                NetworkModule.api.unpinMessage(chatId)
+                pinnedMessage.value = null
+            } catch (e: Exception) {
+                snackbarMessage.value = "Не удалось открепить сообщение"
             }
         }
     }

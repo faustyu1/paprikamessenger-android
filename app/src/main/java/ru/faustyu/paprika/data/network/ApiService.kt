@@ -2,6 +2,7 @@ package ru.faustyu.paprika.data.network
 
 import retrofit2.Response
 import retrofit2.http.Body
+import retrofit2.http.DELETE
 import retrofit2.http.GET
 import retrofit2.http.POST
 import retrofit2.http.Query
@@ -99,6 +100,16 @@ interface ApiService {
     @POST("/chats/{id}/read")
     suspend fun markChatRead(@retrofit2.http.Path("id") id: String): Response<Unit>
 
+    // Message actions
+    @retrofit2.http.PUT("/messages/{id}")
+    suspend fun editMessage(@retrofit2.http.Path("id") id: String, @Body request: EditMessageRequest): Response<MessageDto>
+
+    @DELETE("/messages/{id}")
+    suspend fun deleteMessage(@retrofit2.http.Path("id") id: String): Response<Unit>
+
+    @POST("/messages/{id}/forward")
+    suspend fun forwardMessage(@retrofit2.http.Path("id") id: String, @Body request: ForwardMessageRequest): Response<MessageDto>
+
     // TURN credentials
     @GET("/turn-credentials")
     suspend fun getTurnCredentials(): Response<TurnCredentials>
@@ -115,6 +126,36 @@ interface ApiService {
 
     @POST("/calls/{id}/end")
     suspend fun endCall(@retrofit2.http.Path("id") id: Long): Response<ru.faustyu.paprika.ui.call.CallResponse>
+
+    // Reactions
+    @POST("/messages/{id}/reactions")
+    suspend fun addReaction(@retrofit2.http.Path("id") id: Long, @Body request: AddReactionRequest): Response<Unit>
+
+    @DELETE("/messages/{id}/reactions/{emoji}")
+    suspend fun removeReaction(@retrofit2.http.Path("id") id: Long, @retrofit2.http.Path("emoji") emoji: String): Response<Unit>
+
+    // Pin message
+    @POST("/chats/{id}/pin")
+    suspend fun pinMessage(@retrofit2.http.Path("id") chatId: String, @Body request: PinMessageRequest): Response<Unit>
+
+    @DELETE("/chats/{id}/pin")
+    suspend fun unpinMessage(@retrofit2.http.Path("id") chatId: String): Response<Unit>
+
+    @GET("/chats/{id}/pinned")
+    suspend fun getPinnedMessage(@retrofit2.http.Path("id") chatId: String): Response<MessageDto>
+
+    // Invite
+    @POST("/chats/{id}/invite")
+    suspend fun generateInvite(@retrofit2.http.Path("id") chatId: String): Response<Map<String, String>>
+
+    @DELETE("/chats/{id}/invite")
+    suspend fun revokeInvite(@retrofit2.http.Path("id") chatId: String): Response<Unit>
+
+    @GET("/invite/{token}")
+    suspend fun getChatByInvite(@retrofit2.http.Path("token") token: String): Response<InviteChatInfo>
+
+    @POST("/invite/{token}/join")
+    suspend fun joinByInvite(@retrofit2.http.Path("token") token: String): Response<Map<String, Long>>
 }
 
 data class ChatDto(
@@ -132,6 +173,13 @@ data class ChatDto(
     val unread_count: Long = 0
 )
 
+data class ReplyToDto(
+    val id: Long,
+    val content: String,
+    val type: String,
+    val sender_id: Long
+)
+
 data class MessageDto(
     val id: Long,
     val chat_id: Long,
@@ -139,12 +187,25 @@ data class MessageDto(
     val content: String,
     val type: String,
     val status: String,
-    val created_at: String
+    val created_at: String,
+    val edited_at: Long? = null,
+    val reply_to_message_id: Long? = null,
+    val reply_to_message: ReplyToDto? = null,
+    val forwarded_from_user: ForwardedUserDto? = null,
+    val reactions: List<ReactionCount> = emptyList()
+)
+
+data class ForwardedUserDto(
+    val id: Long,
+    val username: String,
+    val first_name: String? = null,
+    val last_name: String? = null
 )
 
 data class SendMessageDto(
     val content: String,
-    val type: String = "text"
+    val type: String = "text",
+    val reply_to_message_id: Long? = null
 )
 
 data class UpdateProfileRequest(
@@ -218,4 +279,25 @@ data class GroupMemberDto(
 data class UpdateChatRequest(
     val title: String = "",
     val description: String = ""
+)
+
+data class ReactionCount(
+    val emoji: String,
+    val count: Long,
+    val is_mine: Boolean = false
+)
+
+data class AddReactionRequest(val emoji: String)
+
+data class PinMessageRequest(val message_id: Long)
+
+data class EditMessageRequest(val content: String)
+data class ForwardMessageRequest(val to_chat_id: Long)
+
+data class InviteChatInfo(
+    val id: Long,
+    val title: String,
+    val description: String,
+    val avatar: String,
+    val members_count: Long
 )

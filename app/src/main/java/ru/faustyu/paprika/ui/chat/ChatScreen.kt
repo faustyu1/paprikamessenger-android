@@ -6,8 +6,10 @@ import android.media.MediaPlayer
 import android.net.Uri
 import android.widget.VideoView
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -58,6 +60,19 @@ fun ChatScreen(
 
     var inputText by remember { mutableStateOf("") }
     var showMenu by remember { mutableStateOf(false) }
+    var selectedMessage by remember { mutableStateOf<Message?>(null) }
+    var showForwardSheet by remember { mutableStateOf(false) }
+    var showEditDialog by remember { mutableStateOf(false) }
+    var editText by remember { mutableStateOf("") }
+    var showEmojiPicker by remember { mutableStateOf(false) }
+
+    val replyTo = viewModel.replyToMessage.value
+    val pinnedMsg = viewModel.pinnedMessage.value
+    val typingText = viewModel.typingText.value
+
+    LaunchedEffect(inputText) {
+        if (inputText.isNotBlank()) viewModel.sendTyping(chatId)
+    }
     var showAddMemberDialog by remember { mutableStateOf(false) }
     var isRecordingVoice by remember { mutableStateOf(false) }
     var recordingDuration by remember { mutableIntStateOf(0) }
@@ -153,6 +168,138 @@ fun ChatScreen(
         }
     }
 
+    // Long-press context menu
+    selectedMessage?.let { msg ->
+        AlertDialog(
+            onDismissRequest = { selectedMessage = null },
+            title = null,
+            text = null,
+            confirmButton = {},
+            dismissButton = {},
+            tonalElevation = 0.dp
+        )
+    }
+
+    if (selectedMessage != null) {
+        val msg = selectedMessage!!
+        androidx.compose.material3.ModalBottomSheet(
+            onDismissRequest = { selectedMessage = null }
+        ) {
+            Column(modifier = Modifier.padding(bottom = 32.dp)) {
+                ListItem(
+                    headlineContent = { Text("Ответить") },
+                    leadingContent = { Icon(Icons.Filled.Reply, null) },
+                    modifier = Modifier.clickable { viewModel.setReply(msg); selectedMessage = null }
+                )
+                ListItem(
+                    headlineContent = { Text("Переслать") },
+                    leadingContent = { Icon(Icons.Filled.Forward, null) },
+                    modifier = Modifier.clickable { showForwardSheet = true; selectedMessage = null }
+                )
+                ListItem(
+                    headlineContent = { Text("Реакция") },
+                    leadingContent = { Icon(Icons.Filled.EmojiEmotions, null) },
+                    modifier = Modifier.clickable { showEmojiPicker = true }
+                )
+                if (msg.isMe) {
+                    ListItem(
+                        headlineContent = { Text("Редактировать") },
+                        leadingContent = { Icon(Icons.Filled.Edit, null) },
+                        modifier = Modifier.clickable {
+                            editText = msg.content
+                            showEditDialog = true
+                            selectedMessage = null
+                        }
+                    )
+                    ListItem(
+                        headlineContent = { Text("Удалить", color = MaterialTheme.colorScheme.error) },
+                        leadingContent = { Icon(Icons.Filled.Delete, null, tint = MaterialTheme.colorScheme.error) },
+                        modifier = Modifier.clickable {
+                            viewModel.deleteMessage(msg.id)
+                            selectedMessage = null
+                        }
+                    )
+                }
+                if (viewModel.isAdmin.value && isGroup) {
+                    ListItem(
+                        headlineContent = { Text("Закрепить") },
+                        leadingContent = { Icon(Icons.Filled.PushPin, null) },
+                        modifier = Modifier.clickable {
+                            viewModel.pinMessage(chatId, msg.id)
+                            selectedMessage = null
+                        }
+                    )
+                }
+            }
+        }
+    }
+
+    // Emoji picker
+    if (showEmojiPicker && selectedMessage != null) {
+        val msg = selectedMessage!!
+        val emojis = listOf("👍","❤️","😂","😮","😢","🔥","🎉","👎")
+        AlertDialog(
+            onDismissRequest = { showEmojiPicker = false; selectedMessage = null },
+            title = { Text("Выберите реакцию") },
+            text = {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    emojis.forEach { emoji ->
+                        Text(
+                            text = emoji,
+                            style = MaterialTheme.typography.headlineMedium,
+                            modifier = Modifier.clickable {
+                                viewModel.reactToMessage(msg.id, emoji)
+                                showEmojiPicker = false
+                                selectedMessage = null
+                            }
+                        )
+                    }
+                }
+            },
+            confirmButton = {}
+        )
+    }
+
+    // Edit dialog
+    if (showEditDialog && selectedMessage != null) {
+        val msg = selectedMessage!!
+        AlertDialog(
+            onDismissRequest = { showEditDialog = false },
+            title = { Text("Редактировать сообщение") },
+            text = {
+                OutlinedTextField(
+                    value = editText,
+                    onValueChange = { editText = it },
+                    modifier = Modifier.fillMaxWidth()
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    viewModel.editMessage(msg.id, editText)
+                    showEditDialog = false
+                    selectedMessage = null
+                }) { Text("Сохранить") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showEditDialog = false }) { Text("Отмена") }
+            }
+        )
+    }
+
+    // Forward sheet
+    if (showForwardSheet && selectedMessage != null) {
+        val msg = selectedMessage!!
+        ForwardMessageSheet(
+            chats = viewModel.forwardChats,
+            onSelect = { chatDtoId ->
+                viewModel.forwardMessage(msg.id, chatDtoId)
+                showForwardSheet = false
+                selectedMessage = null
+            },
+            onDismiss = { showForwardSheet = false }
+        )
+    }
+
     Scaffold(
         snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
@@ -195,11 +342,13 @@ fun ChatScreen(
                                 maxLines = 1,
                                 overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                             )
-                            if (subtitle.isNotBlank()) {
+                            val displaySubtitle = if (typingText.isNotBlank()) typingText else subtitle
+                            if (displaySubtitle.isNotBlank()) {
                                 Text(
-                                    subtitle,
+                                    displaySubtitle,
                                     style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    color = if (typingText.isNotBlank()) MaterialTheme.colorScheme.primary
+                                            else MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
                         }
@@ -238,6 +387,64 @@ fun ChatScreen(
             )
         },
         bottomBar = {
+            Column {
+            // Pinned message banner
+            if (pinnedMsg != null) {
+                Surface(
+                    color = MaterialTheme.colorScheme.secondaryContainer,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(Icons.Filled.PushPin, null, modifier = Modifier.size(16.dp),
+                            tint = MaterialTheme.colorScheme.primary)
+                        Spacer(Modifier.width(8.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("Закреплённое сообщение", style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.primary)
+                            Text(
+                                pinnedMsg.content.take(60),
+                                style = MaterialTheme.typography.bodySmall,
+                                maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                            )
+                        }
+                        if (viewModel.isAdmin.value) {
+                            IconButton(onClick = { viewModel.unpinMessage(chatId) }, modifier = Modifier.size(24.dp)) {
+                                Icon(Icons.Filled.Close, null, modifier = Modifier.size(16.dp))
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Reply bar
+            if (replyTo != null) {
+                Surface(
+                    color = MaterialTheme.colorScheme.surfaceVariant,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(modifier = Modifier.width(3.dp).height(36.dp)
+                            .background(MaterialTheme.colorScheme.primary, RoundedCornerShape(2.dp)))
+                        Spacer(Modifier.width(8.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("Ответ", style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.primary)
+                            Text(replyTo.content.take(60), style = MaterialTheme.typography.bodySmall,
+                                maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                        }
+                        IconButton(onClick = { viewModel.clearReply() }, modifier = Modifier.size(24.dp)) {
+                            Icon(Icons.Filled.Close, null, modifier = Modifier.size(16.dp))
+                        }
+                    }
+                }
+            }
+
             if (isRecordingVoice) {
                 // Voice recording bar
                 Row(
@@ -321,6 +528,7 @@ fun ChatScreen(
                     }
                 }
             }
+            } // end Column
         }
     ) { padding ->
         LazyColumn(
@@ -331,21 +539,28 @@ fun ChatScreen(
             reverseLayout = true
         ) {
             items(viewModel.messages) { message ->
-                MessageBubble(message = message, chatId = chatId)
+                MessageBubble(
+                    message = message,
+                    chatId = chatId,
+                    onLongPress = { selectedMessage = message }
+                )
             }
         }
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun MessageBubble(message: Message, chatId: String) {
+private fun MessageBubble(message: Message, chatId: String, onLongPress: () -> Unit = {}) {
     val baseUrl = NetworkModule.baseUrl.trimEnd('/')
 
     fun mediaUrl(path: String) =
         if (path.startsWith("http")) path else "$baseUrl$path"
 
     Box(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .combinedClickable(onClick = {}, onLongClick = onLongPress),
         contentAlignment = if (message.isMe) Alignment.CenterEnd else Alignment.CenterStart
     ) {
         when (message.type) {
@@ -394,19 +609,128 @@ private fun MessageBubble(message: Message, chatId: String) {
                             }
 
                             else -> {
-                                // text (and fallback)
-                                Text(
-                                    text = message.content,
-                                    color = MaterialTheme.colorScheme.onSurface,
-                                    modifier = Modifier.weight(1f, fill = false)
-                                )
+                                Column(modifier = Modifier.weight(1f, fill = false)) {
+                                    // Forwarded label
+                                    if (message.forwardedFromName != null) {
+                                        Text(
+                                            "Переслано от ${message.forwardedFromName}",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = MaterialTheme.colorScheme.primary
+                                        )
+                                        Spacer(Modifier.height(2.dp))
+                                    }
+                                    // Reply preview
+                                    if (message.replyToContent != null) {
+                                        Surface(
+                                            shape = RoundedCornerShape(4.dp),
+                                            color = MaterialTheme.colorScheme.surface.copy(alpha = 0.5f),
+                                            modifier = Modifier.fillMaxWidth()
+                                        ) {
+                                            Row(modifier = Modifier.padding(4.dp)) {
+                                                Box(modifier = Modifier.width(3.dp).height(32.dp)
+                                                    .background(MaterialTheme.colorScheme.primary, RoundedCornerShape(2.dp)))
+                                                Spacer(Modifier.width(6.dp))
+                                                Text(
+                                                    message.replyToContent.take(60),
+                                                    style = MaterialTheme.typography.bodySmall,
+                                                    maxLines = 2,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                )
+                                            }
+                                        }
+                                        Spacer(Modifier.height(4.dp))
+                                    }
+                                    // Message text
+                                    Row(verticalAlignment = Alignment.Bottom) {
+                                        Text(
+                                            text = message.content,
+                                            color = MaterialTheme.colorScheme.onSurface
+                                        )
+                                        if (message.edited) {
+                                            Spacer(Modifier.width(4.dp))
+                                            Text("изм.", style = MaterialTheme.typography.labelSmall,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                        }
+                                    }
+                                }
                             }
                         }
 
                         Spacer(modifier = Modifier.width(8.dp))
                         StatusLine(message = message)
                     }
+                    // Reactions row
+                    if (message.reactions.isNotEmpty()) {
+                        Row(
+                            modifier = Modifier.padding(start = 8.dp, bottom = 4.dp, end = 8.dp),
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            message.reactions.filter { it.count > 0 }.forEach { r ->
+                                Surface(
+                                    shape = RoundedCornerShape(12.dp),
+                                    color = if (r.isMine) MaterialTheme.colorScheme.primaryContainer
+                                            else MaterialTheme.colorScheme.surfaceVariant
+                                ) {
+                                    Text(
+                                        "${r.emoji} ${r.count}",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                    )
+                                }
+                            }
+                        }
+                    }
                 }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ForwardMessageSheet(
+    chats: List<ru.faustyu.paprika.data.network.ChatDto>,
+    onSelect: (Long) -> Unit,
+    onDismiss: () -> Unit
+) {
+    ModalBottomSheet(onDismissRequest = onDismiss) {
+        Text(
+            "Переслать в...",
+            style = MaterialTheme.typography.titleMedium,
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+        )
+        LazyColumn(modifier = Modifier.padding(bottom = 32.dp)) {
+            items(chats) { chat ->
+                val avatarUrl = chat.avatar.takeIf { it.isNotBlank() }?.let { av ->
+                    if (av.startsWith("http")) av else NetworkModule.baseUrl.removeSuffix("/") + av
+                }
+                ListItem(
+                    headlineContent = { Text(chat.title) },
+                    leadingContent = {
+                        if (avatarUrl != null) {
+                            AsyncImage(
+                                model = avatarUrl,
+                                contentDescription = null,
+                                modifier = Modifier.size(40.dp).clip(CircleShape),
+                                contentScale = ContentScale.Crop
+                            )
+                        } else {
+                            Box(
+                                modifier = Modifier
+                                    .size(40.dp)
+                                    .background(MaterialTheme.colorScheme.secondaryContainer, CircleShape),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    chat.title.take(1).uppercase(),
+                                    style = MaterialTheme.typography.titleMedium,
+                                    color = MaterialTheme.colorScheme.onSecondaryContainer
+                                )
+                            }
+                        }
+                    },
+                    modifier = Modifier.clickable { onSelect(chat.id) }
+                )
             }
         }
     }

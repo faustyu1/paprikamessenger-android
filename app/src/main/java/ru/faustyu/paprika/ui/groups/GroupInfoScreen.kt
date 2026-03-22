@@ -16,6 +16,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -163,6 +165,40 @@ class GroupInfoViewModel : ViewModel() {
             }
         }
     }
+
+    var inviteLink = androidx.compose.runtime.mutableStateOf<String?>(null)
+
+    fun generateInvite(chatId: String) {
+        viewModelScope.launch {
+            try {
+                val res = NetworkModule.api.generateInvite(chatId)
+                if (res.isSuccessful) {
+                    inviteLink.value = res.body()?.get("invite_link")
+                    snackbar.value = "Ссылка создана"
+                } else {
+                    snackbar.value = "Ошибка создания ссылки"
+                }
+            } catch (_: Exception) {
+                snackbar.value = "Ошибка сети"
+            }
+        }
+    }
+
+    fun revokeInvite(chatId: String) {
+        viewModelScope.launch {
+            try {
+                val res = NetworkModule.api.revokeInvite(chatId)
+                if (res.isSuccessful) {
+                    inviteLink.value = null
+                    snackbar.value = "Ссылка отозвана"
+                } else {
+                    snackbar.value = "Ошибка отзыва ссылки"
+                }
+            } catch (_: Exception) {
+                snackbar.value = "Ошибка сети"
+            }
+        }
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -186,6 +222,7 @@ fun GroupInfoScreen(
 
     val isOwner = viewModel.myId.value == viewModel.ownerId.value
     val isAdmin = viewModel.myRole.value == "admin" || isOwner
+    val clipboardManager = LocalClipboardManager.current
 
     var showEditDialog by remember { mutableStateOf(false) }
     var editTitle by remember { mutableStateOf("") }
@@ -392,6 +429,37 @@ fun GroupInfoScreen(
                 Spacer(Modifier.height(16.dp))
                 HorizontalDivider()
                 Spacer(Modifier.height(8.dp))
+
+                if (isAdmin) {
+                    val link = viewModel.inviteLink.value
+                    if (link != null) {
+                        ListItem(
+                            headlineContent = { Text("Пригласительная ссылка", style = MaterialTheme.typography.bodySmall) },
+                            supportingContent = { Text(link, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary) },
+                            leadingContent = { Icon(Icons.Filled.Link, contentDescription = null) },
+                            trailingContent = {
+                                Row {
+                                    IconButton(onClick = {
+                                        clipboardManager.setText(AnnotatedString(link))
+                                        viewModel.snackbar.value = "Ссылка скопирована"
+                                    }) { Icon(Icons.Filled.ContentCopy, contentDescription = "Copy") }
+                                    if (isOwner) {
+                                        IconButton(onClick = { viewModel.revokeInvite(chatId) }) {
+                                            Icon(Icons.Filled.Delete, contentDescription = "Revoke", tint = MaterialTheme.colorScheme.error)
+                                        }
+                                    }
+                                }
+                            }
+                        )
+                    } else {
+                        ListItem(
+                            headlineContent = { Text("Создать пригласительную ссылку") },
+                            leadingContent = { Icon(Icons.Filled.Link, contentDescription = null) },
+                            modifier = Modifier.clickable { viewModel.generateInvite(chatId) }
+                        )
+                    }
+                    HorizontalDivider()
+                }
 
                 if (!isOwner) {
                     ListItem(

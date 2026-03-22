@@ -25,4 +25,7 @@ interface MessageDao {
 
     @Query("SELECT id FROM messages WHERE chatId = :chatId")
     suspend fun getServerIdsForChat(chatId: Long): List<Long>
+
+    @Query("DELETE FROM messages WHERE id = :id")
+    suspend fun deleteMessage(id: Long)
 }
