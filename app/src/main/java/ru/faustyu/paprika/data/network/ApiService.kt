@@ -62,7 +62,10 @@ interface ApiService {
 
     // Messages
     @GET("/chats/{chatId}/messages")
-    suspend fun getChatMessages(@retrofit2.http.Path("chatId") chatId: String): Response<List<MessageDto>>
+    suspend fun getChatMessages(
+        @retrofit2.http.Path("chatId") chatId: String,
+        @retrofit2.http.Query("q") q: String? = null
+    ): Response<List<MessageDto>>
 
     @POST("/chats/{chatId}/messages")
     suspend fun sendMessage(@retrofit2.http.Path("chatId") chatId: String, @Body request: SendMessageDto): Response<MessageDto>
@@ -205,7 +208,8 @@ data class ForwardedUserDto(
 data class SendMessageDto(
     val content: String,
     val type: String = "text",
-    val reply_to_message_id: Long? = null
+    val reply_to_message_id: Long? = null,
+    val expires_after_sec: Long? = null
 )
 
 data class UpdateProfileRequest(

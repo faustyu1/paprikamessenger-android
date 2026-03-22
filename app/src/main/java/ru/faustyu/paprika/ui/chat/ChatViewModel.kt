@@ -48,6 +48,8 @@ class ChatViewModel(application: android.app.Application) : androidx.lifecycle.A
     var pinnedMessage = androidx.compose.runtime.mutableStateOf<Message?>(null)
     var isOwner = androidx.compose.runtime.mutableStateOf(false)
     var isAdmin = androidx.compose.runtime.mutableStateOf(false)
+    var isChannel = androidx.compose.runtime.mutableStateOf(false)
+    var disappearingTimerSec = androidx.compose.runtime.mutableStateOf(0L)
 
     var searchResults = mutableStateListOf<ru.faustyu.paprika.data.network.UserPublic>()
     val forwardChats = mutableStateListOf<ru.faustyu.paprika.data.network.ChatDto>()
@@ -137,8 +139,17 @@ class ChatViewModel(application: android.app.Application) : androidx.lifecycle.A
                             chatTitle.value = chat.title
                             chatAvatar.value = chat.avatar
                             isGroup.value = (chat.type != 0)
+                            isChannel.value = (chat.type == 2)
+                            isOwner.value = (myUserId == chat.owner_id)
                             if (isGroup.value) {
                                 chatSubtitle.value = "${chat.members_count} участников"
+                                try {
+                                    val membersRes = NetworkModule.api.getChatMembers(chatId)
+                                    if (membersRes.isSuccessful) {
+                                        val myMember = membersRes.body()?.find { it.user_id == myUserId }
+                                        isAdmin.value = myMember?.role == "admin" || isOwner.value
+                                    }
+                                } catch (_: Exception) {}
                             } else {
                                 otherUserId.value = chat.other_user_id
                                 if (chat.other_user_id != 0L) {
@@ -321,9 +332,14 @@ class ChatViewModel(application: android.app.Application) : androidx.lifecycle.A
                 try {
                     val replyId = replyToMessage.value?.id
                     replyToMessage.value = null
+                    val timerSec = disappearingTimerSec.value.takeIf { it > 0 }
                     val response = NetworkModule.api.sendMessage(
                         chatId,
-                        ru.faustyu.paprika.data.network.SendMessageDto(content = text, reply_to_message_id = replyId)
+                        ru.faustyu.paprika.data.network.SendMessageDto(
+                            content = text,
+                            reply_to_message_id = replyId,
+                            expires_after_sec = timerSec
+                        )
                     )
                     if (response.isSuccessful) {
                         response.body()?.let { serverMsg ->
@@ -438,6 +454,46 @@ class ChatViewModel(application: android.app.Application) : androidx.lifecycle.A
                 }
             } catch (e: Exception) {
                 snackbarMessage.value = "Не удалось отправить видео"
+            }
+        }
+    }
+
+    fun sendFile(chatId: String, uri: android.net.Uri, context: android.content.Context) {
+        val cid = if (chatId == "paprika_system") 1L else chatId.toLongOrNull() ?: 0L
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val cursor = context.contentResolver.query(uri, null, null, null, null)
+                val nameIndex = cursor?.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
+                cursor?.moveToFirst()
+                val fileName = cursor?.getString(nameIndex ?: 0) ?: "file"
+                cursor?.close()
+                val mimeType = context.contentResolver.getType(uri) ?: "application/octet-stream"
+                val inputStream = context.contentResolver.openInputStream(uri) ?: return@launch
+                val bytes = inputStream.readBytes()
+                inputStream.close()
+                val requestBody = okhttp3.RequestBody.create(mimeType.toMediaTypeOrNull(), bytes)
+                val body = okhttp3.MultipartBody.Part.createFormData("file", fileName, requestBody)
+                val uploadRes = NetworkModule.api.uploadMedia(body)
+                if (uploadRes.isSuccessful) {
+                    val url = uploadRes.body()?.get("url") ?: return@launch
+                    val tempId = System.currentTimeMillis()
+                    val tempMsg = ru.faustyu.paprika.data.db.MessageEntity(
+                        localId = 0, id = tempId, chatId = cid, senderId = myUserId,
+                        content = url, type = "file", status = "uploading",
+                        createdAt = System.currentTimeMillis() / 1000, isMe = true
+                    )
+                    val rowId = dao.insertMessage(tempMsg)
+                    val response = NetworkModule.api.sendMessage(
+                        chatId, ru.faustyu.paprika.data.network.SendMessageDto(content = url, type = "file")
+                    )
+                    if (response.isSuccessful) {
+                        response.body()?.let {
+                            dao.insertMessage(tempMsg.copy(localId = rowId, id = it.id, status = it.status))
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                snackbarMessage.value = "Не удалось отправить файл"
             }
         }
     }

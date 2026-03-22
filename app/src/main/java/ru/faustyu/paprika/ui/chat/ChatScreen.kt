@@ -5,16 +5,21 @@ import android.content.pm.PackageManager
 import android.media.MediaPlayer
 import android.net.Uri
 import android.widget.VideoView
+import androidx.compose.animation.core.animate
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.gestures.Orientation
+import androidx.compose.foundation.gestures.draggable
+import androidx.compose.foundation.gestures.rememberDraggableState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.ClickableText
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Send
@@ -30,15 +35,24 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import coil.compose.AsyncImage
 import coil.compose.SubcomposeAsyncImage
+import kotlin.math.roundToInt
+import kotlin.random.Random
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import ru.faustyu.paprika.data.PrefsManager
 import ru.faustyu.paprika.data.network.NetworkModule
 import ru.faustyu.paprika.util.VoiceRecorder
-import kotlin.random.Random
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -52,7 +66,7 @@ fun ChatScreen(
     viewModel: ChatViewModel = androidx.lifecycle.viewmodel.compose.viewModel()
 ) {
     val context = LocalContext.current
-    val prefs = remember { ru.faustyu.paprika.data.PrefsManager(context) }
+    val prefs = remember { PrefsManager(context) }
 
     LaunchedEffect(Unit) {
         prefs.token?.let { viewModel.connect(it, chatId) }
@@ -65,10 +79,23 @@ fun ChatScreen(
     var showEditDialog by remember { mutableStateOf(false) }
     var editText by remember { mutableStateOf("") }
     var showEmojiPicker by remember { mutableStateOf(false) }
+    var searchMode by remember { mutableStateOf(false) }
+    var searchText by remember { mutableStateOf("") }
+
+    // Load draft
+    LaunchedEffect(chatId) {
+        inputText = prefs.getDraft(chatId) ?: ""
+    }
+    // Save draft on leave
+    DisposableEffect(chatId) {
+        onDispose { prefs.setDraft(chatId, inputText) }
+    }
 
     val replyTo = viewModel.replyToMessage.value
     val pinnedMsg = viewModel.pinnedMessage.value
     val typingText = viewModel.typingText.value
+    val isChannel = viewModel.isChannel.value
+    val canWrite = !isChannel || viewModel.isAdmin.value
 
     LaunchedEffect(inputText) {
         if (inputText.isNotBlank()) viewModel.sendTyping(chatId)
@@ -157,6 +184,11 @@ fun ChatScreen(
         contract = androidx.activity.result.contract.ActivityResultContracts.PickVisualMedia()
     ) { uri ->
         if (uri != null) viewModel.sendImage(chatId, uri, context)
+    }
+    val pickFile = androidx.activity.compose.rememberLauncherForActivityResult(
+        contract = androidx.activity.result.contract.ActivityResultContracts.GetContent()
+    ) { uri ->
+        if (uri != null) viewModel.sendFile(chatId, uri, context)
     }
 
     val snackbarHostState = remember { SnackbarHostState() }
@@ -305,51 +337,61 @@ fun ChatScreen(
         topBar = {
             TopAppBar(
                 title = {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable { otherId?.let { onProfileClick(it.toString()) } }
-                    ) {
-                        val avatarUrl = viewModel.chatAvatar.value?.takeIf { it.isNotBlank() }?.let { av ->
-                            if (av.startsWith("http")) av else NetworkModule.baseUrl.removeSuffix("/") + av
-                        }
-                        if (avatarUrl != null) {
-                            AsyncImage(
-                                model = avatarUrl,
-                                contentDescription = "Avatar",
-                                modifier = Modifier.size(40.dp).clip(CircleShape),
-                                contentScale = ContentScale.Crop
-                            )
-                        } else {
-                            Box(
-                                modifier = Modifier
-                                    .size(40.dp)
-                                    .background(MaterialTheme.colorScheme.secondaryContainer, CircleShape),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text(
-                                    title.take(1).uppercase(),
-                                    style = MaterialTheme.typography.titleMedium,
-                                    color = MaterialTheme.colorScheme.onSecondaryContainer
-                                )
+                    if (searchMode) {
+                        OutlinedTextField(
+                            value = searchText,
+                            onValueChange = { searchText = it },
+                            placeholder = { Text("Поиск в чате...") },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    } else {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { otherId?.let { onProfileClick(it.toString()) } }
+                        ) {
+                            val avatarUrl = viewModel.chatAvatar.value?.takeIf { it.isNotBlank() }?.let { av ->
+                                if (av.startsWith("http")) av else NetworkModule.baseUrl.removeSuffix("/") + av
                             }
-                        }
-                        Spacer(modifier = Modifier.width(12.dp))
-                        Column {
-                            Text(
-                                title, style = MaterialTheme.typography.titleMedium,
-                                maxLines = 1,
-                                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
-                            )
-                            val displaySubtitle = if (typingText.isNotBlank()) typingText else subtitle
-                            if (displaySubtitle.isNotBlank()) {
-                                Text(
-                                    displaySubtitle,
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = if (typingText.isNotBlank()) MaterialTheme.colorScheme.primary
-                                            else MaterialTheme.colorScheme.onSurfaceVariant
+                            if (avatarUrl != null) {
+                                AsyncImage(
+                                    model = avatarUrl,
+                                    contentDescription = "Avatar",
+                                    modifier = Modifier.size(40.dp).clip(CircleShape),
+                                    contentScale = ContentScale.Crop
                                 )
+                            } else {
+                                Box(
+                                    modifier = Modifier
+                                        .size(40.dp)
+                                        .background(MaterialTheme.colorScheme.secondaryContainer, CircleShape),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        title.take(1).uppercase(),
+                                        style = MaterialTheme.typography.titleMedium,
+                                        color = MaterialTheme.colorScheme.onSecondaryContainer
+                                    )
+                                }
+                            }
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Column {
+                                Text(
+                                    title, style = MaterialTheme.typography.titleMedium,
+                                    maxLines = 1,
+                                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                                )
+                                val displaySubtitle = if (typingText.isNotBlank()) typingText else subtitle
+                                if (displaySubtitle.isNotBlank()) {
+                                    Text(
+                                        displaySubtitle,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = if (typingText.isNotBlank()) MaterialTheme.colorScheme.primary
+                                                else MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
                             }
                         }
                     }
@@ -360,26 +402,31 @@ fun ChatScreen(
                     }
                 },
                 actions = {
-                    if (!isGroup && otherId != null) {
-                        IconButton(onClick = { onCallClick(otherId, title, "audio") }) {
-                            Icon(Icons.Filled.Call, contentDescription = "Call")
-                        }
+                    IconButton(onClick = { searchMode = !searchMode; if (!searchMode) searchText = "" }) {
+                        Icon(if (searchMode) Icons.Filled.Close else Icons.Filled.Search, contentDescription = "Search")
                     }
-                    if (isGroup) {
-                        IconButton(onClick = { onGroupInfoClick(chatId) }) {
-                            Icon(Icons.Filled.Info, contentDescription = "Group Info")
+                    if (!searchMode) {
+                        if (!isGroup && otherId != null) {
+                            IconButton(onClick = { onCallClick(otherId, title, "audio") }) {
+                                Icon(Icons.Filled.Call, contentDescription = "Call")
+                            }
                         }
-                    }
-                    Box {
-                        IconButton(onClick = { showMenu = true }) {
-                            Icon(Icons.Filled.MoreVert, contentDescription = "More")
+                        if (isGroup) {
+                            IconButton(onClick = { onGroupInfoClick(chatId) }) {
+                                Icon(Icons.Filled.Info, contentDescription = "Group Info")
+                            }
                         }
-                        DropdownMenu(expanded = showMenu, onDismissRequest = { showMenu = false }) {
-                            if (isGroup) {
-                                DropdownMenuItem(
-                                    text = { Text("Добавить участника") },
-                                    onClick = { showMenu = false; showAddMemberDialog = true }
-                                )
+                        Box {
+                            IconButton(onClick = { showMenu = true }) {
+                                Icon(Icons.Filled.MoreVert, contentDescription = "More")
+                            }
+                            DropdownMenu(expanded = showMenu, onDismissRequest = { showMenu = false }) {
+                                if (isGroup) {
+                                    DropdownMenuItem(
+                                        text = { Text("Добавить участника") },
+                                        onClick = { showMenu = false; showAddMemberDialog = true }
+                                    )
+                                }
                             }
                         }
                     }
@@ -476,6 +523,18 @@ fun ChatScreen(
                         Icon(Icons.AutoMirrored.Filled.Send, contentDescription = "Send voice")
                     }
                 }
+            } else if (!canWrite) {
+                // Channel read-only banner
+                Box(
+                    modifier = Modifier.fillMaxWidth().padding(12.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        "Только администраторы могут писать",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
             } else {
                 // Normal input bar
                 Row(
@@ -484,21 +543,54 @@ fun ChatScreen(
                         .padding(8.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    IconButton(onClick = {
-                        pickMedia.launch(
-                            androidx.activity.result.PickVisualMediaRequest(
-                                androidx.activity.result.contract.ActivityResultContracts.PickVisualMedia.ImageOnly
+                    // Disappearing timer toggle
+                    val timerSec = viewModel.disappearingTimerSec.value
+                    val timerLabel = when (timerSec) {
+                        3600L -> "1ч"; 86400L -> "1д"; 604800L -> "7д"; 2592000L -> "30д"; else -> null
+                    }
+                    BadgedBox(
+                        badge = { if (timerLabel != null) Badge { Text(timerLabel, style = MaterialTheme.typography.labelSmall) } },
+                        modifier = Modifier.size(40.dp)
+                    ) {
+                        IconButton(onClick = {
+                            viewModel.disappearingTimerSec.value = when (timerSec) {
+                                0L -> 3600L; 3600L -> 86400L; 86400L -> 604800L; 604800L -> 2592000L; else -> 0L
+                            }
+                        }) {
+                            Icon(Icons.Filled.Timer, contentDescription = "Таймер исчезновения", modifier = Modifier.size(20.dp))
+                        }
+                    }
+
+                    // Attach: image or file
+                    Box {
+                        var showAttachMenu by remember { mutableStateOf(false) }
+                        IconButton(onClick = { showAttachMenu = true }) {
+                            Icon(Icons.Default.Add, contentDescription = "Прикрепить")
+                        }
+                        DropdownMenu(expanded = showAttachMenu, onDismissRequest = { showAttachMenu = false }) {
+                            DropdownMenuItem(
+                                text = { Text("Фото") },
+                                leadingIcon = { Icon(Icons.Filled.Image, null) },
+                                onClick = {
+                                    showAttachMenu = false
+                                    pickMedia.launch(androidx.activity.result.PickVisualMediaRequest(
+                                        androidx.activity.result.contract.ActivityResultContracts.PickVisualMedia.ImageOnly
+                                    ))
+                                }
                             )
-                        )
-                    }) {
-                        Icon(Icons.Default.Add, contentDescription = "Attach")
+                            DropdownMenuItem(
+                                text = { Text("Файл") },
+                                leadingIcon = { Icon(Icons.Filled.InsertDriveFile, null) },
+                                onClick = { showAttachMenu = false; pickFile.launch("*/*") }
+                            )
+                        }
                     }
 
                     TextField(
                         value = inputText,
                         onValueChange = { inputText = it },
                         modifier = Modifier.weight(1f),
-                        placeholder = { Text("Message") }
+                        placeholder = { Text("Сообщение") }
                     )
 
                     if (inputText.isNotBlank()) {
@@ -506,10 +598,9 @@ fun ChatScreen(
                             viewModel.sendMessage(chatId, inputText)
                             inputText = ""
                         }) {
-                            Icon(Icons.AutoMirrored.Filled.Send, contentDescription = "Send")
+                            Icon(Icons.AutoMirrored.Filled.Send, contentDescription = "Отправить")
                         }
                     } else {
-                        // Voice button
                         IconButton(onClick = {
                             if (ContextCompat.checkSelfPermission(
                                     context, Manifest.permission.RECORD_AUDIO
@@ -519,11 +610,10 @@ fun ChatScreen(
                                 isRecordingVoice = true
                             }
                         }) {
-                            Icon(Icons.Filled.Mic, contentDescription = "Voice message")
+                            Icon(Icons.Filled.Mic, contentDescription = "Голосовое")
                         }
-                        // Video circle button
                         IconButton(onClick = onVideoCircleClick) {
-                            Icon(Icons.Filled.RadioButtonChecked, contentDescription = "Video circle")
+                            Icon(Icons.Filled.RadioButtonChecked, contentDescription = "Видеосообщение")
                         }
                     }
                 }
@@ -531,6 +621,9 @@ fun ChatScreen(
             } // end Column
         }
     ) { padding ->
+        val displayMessages = if (searchText.isBlank()) viewModel.messages
+            else viewModel.messages.filter { it.content.contains(searchText, ignoreCase = true) }
+
         LazyColumn(
             modifier = Modifier
                 .padding(padding)
@@ -538,11 +631,12 @@ fun ChatScreen(
             contentPadding = PaddingValues(8.dp),
             reverseLayout = true
         ) {
-            items(viewModel.messages) { message ->
+            items(displayMessages) { message ->
                 MessageBubble(
                     message = message,
                     chatId = chatId,
-                    onLongPress = { selectedMessage = message }
+                    onLongPress = { selectedMessage = message },
+                    onReply = { viewModel.setReply(message) }
                 )
             }
         }
@@ -551,15 +645,36 @@ fun ChatScreen(
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun MessageBubble(message: Message, chatId: String, onLongPress: () -> Unit = {}) {
+private fun MessageBubble(
+    message: Message,
+    chatId: String,
+    onLongPress: () -> Unit = {},
+    onReply: () -> Unit = {}
+) {
     val baseUrl = NetworkModule.baseUrl.trimEnd('/')
+    val uriHandler = LocalUriHandler.current
+    fun mediaUrl(path: String) = if (path.startsWith("http")) path else "$baseUrl$path"
 
-    fun mediaUrl(path: String) =
-        if (path.startsWith("http")) path else "$baseUrl$path"
+    var swipeOffset by remember { mutableFloatStateOf(0f) }
+    val coroutineScope = rememberCoroutineScope()
+    val draggableState = rememberDraggableState { delta ->
+        if (delta > 0) swipeOffset = (swipeOffset + delta).coerceAtMost(72f)
+    }
 
     Box(
         modifier = Modifier
             .fillMaxWidth()
+            .offset { IntOffset(swipeOffset.roundToInt(), 0) }
+            .draggable(
+                state = draggableState,
+                orientation = Orientation.Horizontal,
+                onDragStopped = {
+                    if (swipeOffset >= 48f) onReply()
+                    coroutineScope.launch {
+                        animate(swipeOffset, 0f) { v, _ -> swipeOffset = v }
+                    }
+                }
+            )
             .combinedClickable(onClick = {}, onLongClick = onLongPress),
         contentAlignment = if (message.isMe) Alignment.CenterEnd else Alignment.CenterStart
     ) {
@@ -608,6 +723,27 @@ private fun MessageBubble(message: Message, chatId: String, onLongPress: () -> U
                                 VoiceMessagePlayer(url = mediaUrl(message.content))
                             }
 
+                            "file" -> {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier.widthIn(min = 160.dp, max = 240.dp)
+                                ) {
+                                    Icon(Icons.Filled.InsertDriveFile, contentDescription = null, modifier = Modifier.size(28.dp))
+                                    Spacer(Modifier.width(8.dp))
+                                    Text(
+                                        message.content.substringAfterLast("/").substringBefore("?"),
+                                        modifier = Modifier.weight(1f),
+                                        maxLines = 2,
+                                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                                    )
+                                    IconButton(onClick = {
+                                        try { uriHandler.openUri(mediaUrl(message.content)) } catch (_: Exception) {}
+                                    }, modifier = Modifier.size(32.dp)) {
+                                        Icon(Icons.Filled.Download, contentDescription = "Скачать", modifier = Modifier.size(20.dp))
+                                    }
+                                }
+                            }
+
                             else -> {
                                 Column(modifier = Modifier.weight(1f, fill = false)) {
                                     // Forwarded label
@@ -640,11 +776,11 @@ private fun MessageBubble(message: Message, chatId: String, onLongPress: () -> U
                                         }
                                         Spacer(Modifier.height(4.dp))
                                     }
-                                    // Message text
+                                    // Message text with clickable @mentions and links
                                     Row(verticalAlignment = Alignment.Bottom) {
-                                        Text(
+                                        ClickableMessageText(
                                             text = message.content,
-                                            color = MaterialTheme.colorScheme.onSurface
+                                            modifier = Modifier.weight(1f, fill = false)
                                         )
                                         if (message.edited) {
                                             Spacer(Modifier.width(4.dp))
@@ -684,6 +820,48 @@ private fun MessageBubble(message: Message, chatId: String, onLongPress: () -> U
             }
         }
     }
+}
+
+@Composable
+private fun ClickableMessageText(text: String, modifier: Modifier = Modifier) {
+    val uriHandler = LocalUriHandler.current
+    val linkColor = MaterialTheme.colorScheme.primary
+    val textColor = MaterialTheme.colorScheme.onSurface
+    val baseStyle = MaterialTheme.typography.bodyMedium
+
+    val annotated = remember(text) {
+        buildAnnotatedString {
+            val regex = Regex("(https?://[^\\s]+|@\\w+)")
+            var cursor = 0
+            regex.findAll(text).forEach { match ->
+                if (match.range.first > cursor) {
+                    withStyle(SpanStyle(color = textColor)) {
+                        append(text.substring(cursor, match.range.first))
+                    }
+                }
+                val isMention = match.value.startsWith("@")
+                pushStringAnnotation(if (isMention) "MENTION" else "URL", match.value)
+                withStyle(SpanStyle(color = linkColor, textDecoration = TextDecoration.Underline)) {
+                    append(match.value)
+                }
+                pop()
+                cursor = match.range.last + 1
+            }
+            if (cursor < text.length) {
+                withStyle(SpanStyle(color = textColor)) { append(text.substring(cursor)) }
+            }
+        }
+    }
+
+    ClickableText(
+        text = annotated,
+        style = baseStyle,
+        modifier = modifier,
+        onClick = { offset ->
+            annotated.getStringAnnotations("URL", offset, offset).firstOrNull()
+                ?.let { try { uriHandler.openUri(it.item) } catch (_: Exception) {} }
+        }
+    )
 }
 
 @OptIn(ExperimentalMaterial3Api::class)

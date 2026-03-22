@@ -211,26 +211,35 @@ fun ChatListScreen(
                     if (chat.last_message_at > 0 || chat.id == 1L) {
                         ListItem(
                             headlineContent = { Text(chat.title) },
-                            supportingContent = { 
-                                val noMsg = stringResource(R.string.chatlist_no_messages)
-                                val preview = chat.last_message_preview ?: noMsg
-                                if (preview.startsWith("/media/") || preview.startsWith("http")) {
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                        Icon(
-                                            imageVector = Icons.Filled.Image, 
-                                            contentDescription = "Image", 
-                                            modifier = Modifier.size(16.dp), 
-                                            tint = MaterialTheme.colorScheme.primary
-                                        )
-                                        Spacer(modifier = Modifier.width(4.dp))
-                                        Text(stringResource(R.string.chatlist_photo), color = MaterialTheme.colorScheme.primary)
-                                    }
-                                } else {
+                            supportingContent = {
+                                val typing = viewModel.typingInChat[chat.id]
+                                if (typing != null) {
                                     Text(
-                                        text = preview,
-                                        maxLines = 1,
-                                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
-                                    ) 
+                                        "$typing печатает...",
+                                        color = MaterialTheme.colorScheme.primary,
+                                        maxLines = 1
+                                    )
+                                } else {
+                                    val noMsg = stringResource(R.string.chatlist_no_messages)
+                                    val preview = chat.last_message_preview ?: noMsg
+                                    if (preview.startsWith("/media/") || preview.startsWith("http")) {
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Icon(
+                                                imageVector = Icons.Filled.Image,
+                                                contentDescription = "Image",
+                                                modifier = Modifier.size(16.dp),
+                                                tint = MaterialTheme.colorScheme.primary
+                                            )
+                                            Spacer(modifier = Modifier.width(4.dp))
+                                            Text(stringResource(R.string.chatlist_photo), color = MaterialTheme.colorScheme.primary)
+                                        }
+                                    } else {
+                                        Text(
+                                            text = preview,
+                                            maxLines = 1,
+                                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                                        )
+                                    }
                                 }
                             },
                             leadingContent = {

@@ -37,4 +37,11 @@ class PrefsManager(context: Context) {
     fun clear() {
         prefs.edit().clear().apply()
     }
+
+    fun getDraft(chatId: String): String? = prefs.getString("draft_$chatId", null)
+
+    fun setDraft(chatId: String, text: String) {
+        if (text.isBlank()) prefs.edit().remove("draft_$chatId").apply()
+        else prefs.edit().putString("draft_$chatId", text).apply()
+    }
 }

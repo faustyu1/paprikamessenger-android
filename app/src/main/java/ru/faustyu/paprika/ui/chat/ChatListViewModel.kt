@@ -7,11 +7,13 @@ import kotlinx.coroutines.launch
 import ru.faustyu.paprika.data.network.ChatDto
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.mutableStateMapOf
+import ru.faustyu.paprika.data.network.AppWebSocketManager
 
 class ChatListViewModel : ViewModel() {
     var chats by mutableStateOf<List<ChatDto>>(emptyList())
         private set
-    
+
     var currentUser by mutableStateOf<ru.faustyu.paprika.data.network.UserPublic?>(null)
         private set
 
@@ -21,8 +23,22 @@ class ChatListViewModel : ViewModel() {
     var error by mutableStateOf<String?>(null)
         private set
 
+    val typingInChat = mutableStateMapOf<Long, String>()
+
     init {
         loadChats()
+        AppWebSocketManager.addListener("chatlist_vm") { event ->
+            val type = event["event"] as? String ?: return@addListener
+            if (type == "user:typing") {
+                val chatId = (event["chat_id"] as? Double)?.toLong() ?: return@addListener
+                val username = event["username"] as? String ?: return@addListener
+                typingInChat[chatId] = username
+                viewModelScope.launch {
+                    kotlinx.coroutines.delay(3000)
+                    typingInChat.remove(chatId)
+                }
+            }
+        }
     }
 
     fun loadChats() {
@@ -33,8 +49,7 @@ class ChatListViewModel : ViewModel() {
                 if (response.isSuccessful) {
                     chats = response.body() ?: emptyList()
                 }
-                
-                // Fetch current user for header
+
                 val userResponse = ru.faustyu.paprika.data.network.NetworkModule.api.getMyProfile()
                 if (userResponse.isSuccessful) {
                     currentUser = userResponse.body()
@@ -45,5 +60,10 @@ class ChatListViewModel : ViewModel() {
                 isLoading = false
             }
         }
+    }
+
+    override fun onCleared() {
+        super.onCleared()
+        AppWebSocketManager.removeListener("chatlist_vm")
     }
 }
