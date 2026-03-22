@@ -76,6 +76,23 @@ interface ApiService {
     suspend fun addChatMember(@retrofit2.http.Path("id") id: String, @Body request: AddMemberRequest): Response<Unit>
     @POST("/chats/{id}/read")
     suspend fun markChatRead(@retrofit2.http.Path("id") id: String): Response<Unit>
+
+    // TURN credentials
+    @GET("/turn-credentials")
+    suspend fun getTurnCredentials(): Response<TurnCredentials>
+
+    // Calls
+    @POST("/calls")
+    suspend fun initiateCall(@Body request: ru.faustyu.paprika.ui.call.InitiateCallRequest): Response<ru.faustyu.paprika.ui.call.CallResponse>
+
+    @POST("/calls/{id}/accept")
+    suspend fun acceptCall(@retrofit2.http.Path("id") id: Long): Response<ru.faustyu.paprika.ui.call.CallResponse>
+
+    @POST("/calls/{id}/reject")
+    suspend fun rejectCall(@retrofit2.http.Path("id") id: Long): Response<ru.faustyu.paprika.ui.call.CallResponse>
+
+    @POST("/calls/{id}/end")
+    suspend fun endCall(@retrofit2.http.Path("id") id: Long): Response<ru.faustyu.paprika.ui.call.CallResponse>
 }
 
 data class ChatDto(
@@ -151,6 +168,12 @@ data class Chat(
     val type: Int,
     val title: String,
     val description: String?
+)
+
+data class TurnCredentials(
+    val urls: List<String>,
+    val username: String? = null,
+    val credential: String? = null
 )
 
 data class CreateChatRequest(

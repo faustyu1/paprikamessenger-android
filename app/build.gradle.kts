@@ -42,6 +42,7 @@ android {
     }
     buildFeatures {
         compose = true
+        buildConfig = true
     }
     composeOptions {
         kotlinCompilerExtensionVersion = "1.5.1"
@@ -68,6 +69,15 @@ dependencies {
     implementation(libs.okhttp)
     implementation(libs.okhttp.logging)
     implementation("io.coil-kt:coil-compose:2.5.0")
+    implementation("io.getstream:stream-webrtc-android:1.1.0")
+
+    // CameraX for video circles
+    implementation("androidx.camera:camera-camera2:1.3.1")
+    implementation("androidx.camera:camera-lifecycle:1.3.1")
+    implementation("androidx.camera:camera-video:1.3.1")
+    implementation("androidx.camera:camera-view:1.3.1")
+    implementation("androidx.lifecycle:lifecycle-runtime-compose:2.8.7")
+    implementation("androidx.security:security-crypto:1.1.0-alpha06")
 
     implementation(libs.androidx.room.runtime)
     implementation(libs.androidx.room.ktx)
