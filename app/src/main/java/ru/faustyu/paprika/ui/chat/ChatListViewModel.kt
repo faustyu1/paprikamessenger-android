@@ -1,7 +1,6 @@
 package ru.faustyu.paprika.ui.chat
 
 import androidx.compose.runtime.mutableStateOf
-import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.launch
 import ru.faustyu.paprika.data.network.ChatDto
@@ -10,7 +9,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.mutableStateMapOf
 import ru.faustyu.paprika.data.network.AppWebSocketManager
 
-class ChatListViewModel : ViewModel() {
+class ChatListViewModel(application: android.app.Application) : androidx.lifecycle.AndroidViewModel(application) {
     var chats by mutableStateOf<List<ChatDto>>(emptyList())
         private set
 
@@ -48,6 +47,8 @@ class ChatListViewModel : ViewModel() {
                 val response = ru.faustyu.paprika.data.network.NetworkModule.api.getChats()
                 if (response.isSuccessful) {
                     chats = response.body() ?: emptyList()
+                    val totalUnread = chats.sumOf { it.unread_count }.toInt()
+                    ru.faustyu.paprika.util.AppNotificationHelper.updateBadge(getApplication(), totalUnread)
                 }
 
                 val userResponse = ru.faustyu.paprika.data.network.NetworkModule.api.getMyProfile()

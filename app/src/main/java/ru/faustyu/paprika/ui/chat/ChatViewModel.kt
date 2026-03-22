@@ -55,6 +55,7 @@ class ChatViewModel(application: android.app.Application) : androidx.lifecycle.A
     var isAdmin = androidx.compose.runtime.mutableStateOf(false)
     var isChannel = androidx.compose.runtime.mutableStateOf(false)
     var disappearingTimerSec = androidx.compose.runtime.mutableStateOf(0L)
+    var initialUnreadCount = androidx.compose.runtime.mutableStateOf(0L)
 
     var searchResults = mutableStateListOf<ru.faustyu.paprika.data.network.UserPublic>()
     val forwardChats = mutableStateListOf<ru.faustyu.paprika.data.network.ChatDto>()
@@ -146,6 +147,7 @@ class ChatViewModel(application: android.app.Application) : androidx.lifecycle.A
                             isGroup.value = (chat.type != 0)
                             isChannel.value = (chat.type == 2)
                             isOwner.value = (myUserId == chat.owner_id)
+                            initialUnreadCount.value = chat.unread_count
                             if (isGroup.value) {
                                 chatSubtitle.value = "${chat.members_count} участников"
                                 try {
@@ -673,6 +675,34 @@ class ChatViewModel(application: android.app.Application) : androidx.lifecycle.A
                 }
             } catch (e: Exception) {
                 viewModelScope.launch { snackbarMessage.value = "Ошибка экспорта" }
+            }
+        }
+    }
+
+    fun sendGif(chatId: String, gifUrl: String) {
+        val cid = if (chatId == "paprika_system") 1L else chatId.toLongOrNull() ?: 0L
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val tempId = System.currentTimeMillis()
+                val tempMsg = ru.faustyu.paprika.data.db.MessageEntity(
+                    localId = 0, id = tempId, chatId = cid, senderId = myUserId,
+                    content = gifUrl, type = "gif", status = "sending",
+                    createdAt = System.currentTimeMillis() / 1000, isMe = true
+                )
+                val rowId = dao.insertMessage(tempMsg)
+                val response = NetworkModule.api.sendMessage(
+                    chatId,
+                    ru.faustyu.paprika.data.network.SendMessageDto(content = gifUrl, type = "gif")
+                )
+                if (response.isSuccessful) {
+                    response.body()?.let { serverMsg ->
+                        dao.insertMessage(
+                            tempMsg.copy(localId = rowId, id = serverMsg.id, status = serverMsg.status)
+                        )
+                    }
+                }
+            } catch (e: Exception) {
+                snackbarMessage.value = "Не удалось отправить GIF"
             }
         }
     }

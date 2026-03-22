@@ -14,7 +14,9 @@ object AppWebSocketManager {
     private var webSocket: WebSocket? = null
     private val gson = Gson()
     private val listeners = ConcurrentHashMap<String, (Map<String, Any?>) -> Unit>()
-    private val mapType = TypeToken.getParameterized(Map::class.java, String::class.java, Any::class.java).type
+    private val mapType = object : TypeToken<Map<String, Any?>>() {}.type
+
+    var onNewMessage: (() -> Unit)? = null
 
     fun connect(token: String, baseUrl: String) {
         if (webSocket != null) return
@@ -33,6 +35,11 @@ object AppWebSocketManager {
             override fun onMessage(ws: WebSocket, text: String) {
                 try {
                     val msg: Map<String, Any?> = gson.fromJson(text, mapType)
+                    val type = msg["type"] as? String
+                    val event = msg["event"] as? String
+                    if (type == "new_message" || event == "message:new") {
+                        onNewMessage?.invoke()
+                    }
                     listeners.values.forEach { it(msg) }
                 } catch (e: Exception) {
                     Log.e(TAG, "Parse error: $e")

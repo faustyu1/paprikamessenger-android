@@ -12,14 +12,23 @@ import android.os.Environment
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.biometric.BiometricManager
+import androidx.biometric.BiometricPrompt
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.compose.NavHost
@@ -37,8 +46,10 @@ import ru.faustyu.paprika.ui.settings.SessionsScreen
 import ru.faustyu.paprika.ui.settings.SettingsScreen
 import ru.faustyu.paprika.ui.chat.MediaGalleryScreen
 import ru.faustyu.paprika.ui.theme.PaprikaTheme
+import ru.faustyu.paprika.util.AppNotificationHelper
 import ru.faustyu.paprika.util.GitHubRelease
 import ru.faustyu.paprika.util.UpdateChecker
+import java.security.MessageDigest
 
 class MainActivity : ComponentActivity() {
 
@@ -73,10 +84,16 @@ class MainActivity : ComponentActivity() {
 
         val prefs = PrefsManager(this)
         prefs.backendUrl?.let { NetworkModule.setCustomUrl(it) }
+        AppNotificationHelper.init(this)
 
         val startDestination = if (prefs.token != null) {
             NetworkModule.authToken = prefs.token
             AppWebSocketManager.connect(prefs.token!!, NetworkModule.getCurrentUrl())
+            AppWebSocketManager.onNewMessage = {
+                if (prefs.notificationSound) {
+                    AppNotificationHelper.playMessageSound(this, true)
+                }
+            }
             "chat_list"
         } else {
             "auth"
@@ -89,6 +106,71 @@ class MainActivity : ComponentActivity() {
                     val callViewModel: CallViewModel = viewModel()
                     val callState by callViewModel.callState.collectAsState()
                     val isMuted by callViewModel.isMuted.collectAsState()
+
+                    // App lock
+                    var isUnlocked by remember { mutableStateOf(!prefs.appLockEnabled) }
+                    var pinInput by remember { mutableStateOf("") }
+                    var pinError by remember { mutableStateOf(false) }
+                    LaunchedEffect(Unit) {
+                        if (prefs.appLockEnabled) {
+                            val biometricManager = BiometricManager.from(this@MainActivity)
+                            val canUseBiometric = biometricManager.canAuthenticate(
+                                BiometricManager.Authenticators.BIOMETRIC_WEAK
+                            ) == BiometricManager.BIOMETRIC_SUCCESS
+                            if (canUseBiometric) {
+                                val executor = ContextCompat.getMainExecutor(this@MainActivity)
+                                val prompt = BiometricPrompt(
+                                    this@MainActivity, executor,
+                                    object : BiometricPrompt.AuthenticationCallback() {
+                                        override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
+                                            isUnlocked = true
+                                        }
+                                    }
+                                )
+                                prompt.authenticate(
+                                    BiometricPrompt.PromptInfo.Builder()
+                                        .setTitle("Разблокировать Paprika")
+                                        .setSubtitle("Используйте биометрию для входа")
+                                        .setNegativeButtonText("PIN")
+                                        .build()
+                                )
+                            }
+                        }
+                    }
+
+                    if (!isUnlocked) {
+                        AlertDialog(
+                            onDismissRequest = {},
+                            title = { Text("Введите PIN") },
+                            text = {
+                                OutlinedTextField(
+                                    value = pinInput,
+                                    onValueChange = { pinInput = it.take(6); pinError = false },
+                                    visualTransformation = PasswordVisualTransformation(),
+                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
+                                    isError = pinError,
+                                    supportingText = if (pinError) { { Text("Неверный PIN") } } else null,
+                                    label = { Text("PIN-код") },
+                                    modifier = Modifier.fillMaxWidth().padding(top = 8.dp)
+                                )
+                            },
+                            confirmButton = {
+                                TextButton(onClick = {
+                                    val hash = MessageDigest.getInstance("SHA-256")
+                                        .digest(pinInput.toByteArray())
+                                        .joinToString("") { "%02x".format(it) }
+                                    if (hash == prefs.pinHash) {
+                                        isUnlocked = true
+                                    } else {
+                                        pinError = true
+                                        pinInput = ""
+                                    }
+                                }) { Text("Войти") }
+                            },
+                            dismissButton = {}
+                        )
+                        return@Surface
+                    }
 
                     var pendingUpdate by remember { mutableStateOf<GitHubRelease?>(null) }
                     LaunchedEffect(Unit) {
@@ -147,6 +229,11 @@ class MainActivity : ComponentActivity() {
                                     prefs.token = token
                                     NetworkModule.authToken = token
                                     AppWebSocketManager.connect(token, NetworkModule.getCurrentUrl())
+                                    AppWebSocketManager.onNewMessage = {
+                                        if (prefs.notificationSound) {
+                                            AppNotificationHelper.playMessageSound(this@MainActivity, true)
+                                        }
+                                    }
                                     navController.navigate("chat_list") {
                                         popUpTo("auth") { inclusive = true }
                                     }

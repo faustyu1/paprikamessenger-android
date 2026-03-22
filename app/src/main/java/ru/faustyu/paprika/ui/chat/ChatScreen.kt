@@ -50,8 +50,10 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
+import coil.ImageLoader
 import coil.compose.AsyncImage
 import coil.compose.SubcomposeAsyncImage
+import coil.decode.GifDecoder
 import kotlin.math.roundToInt
 import kotlin.random.Random
 import kotlinx.coroutines.delay
@@ -63,6 +65,7 @@ import ru.faustyu.paprika.util.VoiceRecorder
 sealed class ChatListItem {
     data class MessageItem(val message: Message) : ChatListItem()
     data class DateSeparator(val dateStr: String) : ChatListItem()
+    object UnreadSeparator : ChatListItem()
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -115,6 +118,7 @@ fun ChatScreen(
     var isRecordingVoice by remember { mutableStateOf(false) }
     var recordingDuration by remember { mutableIntStateOf(0) }
     var showStickerSheet by remember { mutableStateOf(false) }
+    var showGifSheet by remember { mutableStateOf(false) }
     val stickers = remember { listOf("😀","😂","❤️","👍","🎉","😎","🤔","😢","🔥","✨","💯","🙏","😍","😭","🤣","😊","👀","💪","🎊","🌟") }
 
     val title = viewModel.chatTitle.value
@@ -342,6 +346,17 @@ fun ChatScreen(
                 selectedMessage = null
             },
             onDismiss = { showForwardSheet = false }
+        )
+    }
+
+    // GIF picker sheet
+    if (showGifSheet) {
+        GifPickerSheet(
+            onGifSelected = { gifUrl ->
+                viewModel.sendGif(chatId, gifUrl)
+                showGifSheet = false
+            },
+            onDismiss = { showGifSheet = false }
         )
     }
 
@@ -666,6 +681,9 @@ fun ChatScreen(
                         IconButton(onClick = { showStickerSheet = true }) {
                             Icon(Icons.Filled.EmojiEmotions, contentDescription = "Стикеры")
                         }
+                        IconButton(onClick = { showGifSheet = true }) {
+                            Text("GIF", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+                        }
                     }
                 }
             }
@@ -675,11 +693,17 @@ fun ChatScreen(
         val displayMessages = if (searchText.isBlank()) viewModel.messages
             else viewModel.messages.filter { it.content.contains(searchText, ignoreCase = true) }
 
-        val chatItems = remember(displayMessages) {
+        val unreadCount = viewModel.initialUnreadCount.value
+        val chatItems = remember(displayMessages, unreadCount) {
             if (displayMessages.isEmpty()) return@remember emptyList<ChatListItem>()
             val result = mutableListOf<ChatListItem>()
+            // messages are in reverse order (newest first), so unread separator goes before index = unreadCount
+            val unreadSepIndex = if (unreadCount > 0 && unreadCount < displayMessages.size) unreadCount.toInt() else -1
             displayMessages.forEachIndexed { index, msg ->
                 result.add(ChatListItem.MessageItem(msg))
+                if (index == unreadSepIndex - 1) {
+                    result.add(ChatListItem.UnreadSeparator)
+                }
                 val msgDate = run {
                     val inst = java.time.Instant.ofEpochSecond(msg.timestamp)
                     val today = java.time.LocalDate.now()
@@ -723,10 +747,29 @@ fun ChatScreen(
                         when (item) {
                             is ChatListItem.MessageItem -> "msg_${item.message.id}"
                             is ChatListItem.DateSeparator -> "sep_${item.dateStr}"
+                            is ChatListItem.UnreadSeparator -> "unread_sep"
                         }
                     }
                 ) { item ->
                     when (item) {
+                        is ChatListItem.UnreadSeparator -> {
+                            Box(
+                                modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Surface(
+                                    shape = RoundedCornerShape(12.dp),
+                                    color = MaterialTheme.colorScheme.primaryContainer
+                                ) {
+                                    Text(
+                                        "Непрочитанные сообщения",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
+                                        color = MaterialTheme.colorScheme.onPrimaryContainer
+                                    )
+                                }
+                            }
+                        }
                         is ChatListItem.DateSeparator -> {
                             Box(
                                 modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
@@ -749,7 +792,13 @@ fun ChatScreen(
                                 message = item.message,
                                 chatId = chatId,
                                 onLongPress = { selectedMessage = item.message },
-                                onReply = { viewModel.setReply(item.message) }
+                                onReply = { viewModel.setReply(item.message) },
+                                onMentionClick = { username ->
+                                    viewModel.searchUsers(username)
+                                    // Navigate to user profile if found
+                                    val user = viewModel.searchResults.firstOrNull { it.username == username }
+                                    if (user != null) onProfileClick(user.id.toString())
+                                }
                             )
                         }
                     }
@@ -778,7 +827,8 @@ private fun MessageBubble(
     message: Message,
     chatId: String,
     onLongPress: () -> Unit = {},
-    onReply: () -> Unit = {}
+    onReply: () -> Unit = {},
+    onMentionClick: ((String) -> Unit)? = null
 ) {
     val baseUrl = NetworkModule.baseUrl.trimEnd('/')
     val uriHandler = LocalUriHandler.current
@@ -855,6 +905,27 @@ private fun MessageBubble(
                                             contentAlignment = Alignment.Center
                                         ) { CircularProgressIndicator(modifier = Modifier.size(24.dp)) }
                                     }
+                                )
+                            }
+
+                            "gif" -> {
+                                val gifLoader = remember {
+                                    ImageLoader.Builder(LocalContext.current)
+                                        .components { add(GifDecoder.Factory()) }
+                                        .build()
+                                }
+                                val gifUrl = if (message.content.startsWith("http")) message.content
+                                             else ru.faustyu.paprika.data.network.NetworkModule.baseUrl.removeSuffix("/") + message.content
+                                AsyncImage(
+                                    model = coil.request.ImageRequest.Builder(LocalContext.current)
+                                        .data(gifUrl).crossfade(false).build(),
+                                    imageLoader = gifLoader,
+                                    contentDescription = "GIF",
+                                    modifier = Modifier
+                                        .widthIn(max = 250.dp)
+                                        .heightIn(max = 200.dp)
+                                        .clip(RoundedCornerShape(12.dp)),
+                                    contentScale = ContentScale.Crop
                                 )
                             }
 
@@ -954,13 +1025,20 @@ private fun MessageBubble(
                                     Row(verticalAlignment = Alignment.Bottom) {
                                         ClickableMessageText(
                                             text = message.content,
-                                            modifier = Modifier.weight(1f, fill = false)
+                                            modifier = Modifier.weight(1f, fill = false),
+                                            onMentionClick = onMentionClick
                                         )
                                         if (message.edited) {
                                             Spacer(Modifier.width(4.dp))
                                             Text("изм.", style = MaterialTheme.typography.labelSmall,
                                                 color = MaterialTheme.colorScheme.onSurfaceVariant)
                                         }
+                                    }
+                                    // Link preview card
+                                    val urlRegex = remember { Regex("https?://[^\\s]+") }
+                                    val firstUrl = remember(message.content) { urlRegex.find(message.content)?.value }
+                                    if (firstUrl != null) {
+                                        LinkPreviewCard(url = firstUrl)
                                     }
                                 }
                             }
@@ -997,7 +1075,11 @@ private fun MessageBubble(
 }
 
 @Composable
-private fun ClickableMessageText(text: String, modifier: Modifier = Modifier) {
+private fun ClickableMessageText(
+    text: String,
+    modifier: Modifier = Modifier,
+    onMentionClick: ((String) -> Unit)? = null
+) {
     val uriHandler = LocalUriHandler.current
     val linkColor = MaterialTheme.colorScheme.primary
     val textColor = MaterialTheme.colorScheme.onSurface
@@ -1065,6 +1147,8 @@ private fun ClickableMessageText(text: String, modifier: Modifier = Modifier) {
         onClick = { offset ->
             annotated.getStringAnnotations("URL", offset, offset).firstOrNull()
                 ?.let { try { uriHandler.openUri(it.item) } catch (_: Exception) {} }
+            annotated.getStringAnnotations("MENTION", offset, offset).firstOrNull()
+                ?.let { onMentionClick?.invoke(it.item.removePrefix("@")) }
         }
     )
 }
@@ -1114,6 +1198,47 @@ private fun ForwardMessageSheet(
                     },
                     modifier = Modifier.clickable { onSelect(chat.id) }
                 )
+            }
+        }
+    }
+}
+
+@Composable
+private fun LinkPreviewCard(url: String) {
+    var preview by remember(url) { mutableStateOf<ru.faustyu.paprika.util.LinkPreviewData?>(null) }
+    var loaded by remember(url) { mutableStateOf(false) }
+    val uriHandler = LocalUriHandler.current
+    LaunchedEffect(url) {
+        preview = ru.faustyu.paprika.util.LinkPreviewFetcher.fetch(url)
+        loaded = true
+    }
+    val p = preview ?: return
+    Spacer(Modifier.height(4.dp))
+    Surface(
+        shape = RoundedCornerShape(8.dp),
+        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.7f),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { try { uriHandler.openUri(url) } catch (_: Exception) {} }
+    ) {
+        Row(modifier = Modifier.padding(8.dp), verticalAlignment = Alignment.Top) {
+            if (p.imageUrl != null) {
+                AsyncImage(
+                    model = p.imageUrl,
+                    contentDescription = null,
+                    modifier = Modifier.size(56.dp).clip(RoundedCornerShape(4.dp)),
+                    contentScale = ContentScale.Crop
+                )
+                Spacer(Modifier.width(8.dp))
+            }
+            Column(modifier = Modifier.weight(1f)) {
+                Text(p.title, style = MaterialTheme.typography.labelMedium, maxLines = 2,
+                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                if (p.description != null) {
+                    Text(p.description, style = MaterialTheme.typography.bodySmall,
+                        maxLines = 2, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
             }
         }
     }
