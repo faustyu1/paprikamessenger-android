@@ -143,7 +143,17 @@ fun ChatScreen(
         if (uri != null) viewModel.sendImage(chatId, uri, context)
     }
 
+    val snackbarHostState = remember { SnackbarHostState() }
+    val snackbarMsg = viewModel.snackbarMessage.value
+    LaunchedEffect(snackbarMsg) {
+        if (snackbarMsg != null) {
+            snackbarHostState.showSnackbar(snackbarMsg)
+            viewModel.snackbarMessage.value = null
+        }
+    }
+
     Scaffold(
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
                 title = {

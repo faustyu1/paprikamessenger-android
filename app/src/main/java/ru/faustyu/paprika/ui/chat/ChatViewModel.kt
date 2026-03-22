@@ -33,6 +33,7 @@ class ChatViewModel(application: android.app.Application) : androidx.lifecycle.A
     var otherUserId = androidx.compose.runtime.mutableStateOf<Long?>(null)
     var chatSubtitle = androidx.compose.runtime.mutableStateOf("loading...")
     var isGroup = androidx.compose.runtime.mutableStateOf(false)
+    var snackbarMessage = androidx.compose.runtime.mutableStateOf<String?>(null)
 
     var searchResults = mutableStateListOf<ru.faustyu.paprika.data.network.UserPublic>()
 
@@ -45,7 +46,7 @@ class ChatViewModel(application: android.app.Application) : androidx.lifecycle.A
                     res.body()?.let { searchResults.addAll(it) }
                 }
             } catch (e: Exception) {
-                Log.e("ChatVM", "Search failed", e)
+                snackbarMessage.value = "Ошибка поиска"
             }
         }
     }
@@ -147,7 +148,7 @@ class ChatViewModel(application: android.app.Application) : androidx.lifecycle.A
                     if (!entities.isNullOrEmpty()) dao.insertMessages(entities)
                 }
             } catch (e: Exception) {
-                Log.e("ChatVM", "History failed", e)
+                snackbarMessage.value = "Не удалось загрузить сообщения"
             }
         }
 
@@ -207,7 +208,7 @@ class ChatViewModel(application: android.app.Application) : androidx.lifecycle.A
                         }
                     }
                 } catch (e: Exception) {
-                    Log.e("ChatVM", "Send failed", e)
+                    snackbarMessage.value = "Не удалось отправить сообщение"
                 }
             }
         }
@@ -245,7 +246,7 @@ class ChatViewModel(application: android.app.Application) : androidx.lifecycle.A
                     }
                 }
             } catch (e: Exception) {
-                Log.e("ChatVM", "Image send failed", e)
+                snackbarMessage.value = "Не удалось отправить фото"
             }
         }
     }
@@ -278,7 +279,7 @@ class ChatViewModel(application: android.app.Application) : androidx.lifecycle.A
                     file.delete()
                 }
             } catch (e: Exception) {
-                Log.e("ChatVM", "Voice send failed", e)
+                snackbarMessage.value = "Не удалось отправить голосовое"
             }
         }
     }
@@ -311,7 +312,7 @@ class ChatViewModel(application: android.app.Application) : androidx.lifecycle.A
                     file.delete()
                 }
             } catch (e: Exception) {
-                Log.e("ChatVM", "VideoCircle send failed", e)
+                snackbarMessage.value = "Не удалось отправить видео"
             }
         }
     }

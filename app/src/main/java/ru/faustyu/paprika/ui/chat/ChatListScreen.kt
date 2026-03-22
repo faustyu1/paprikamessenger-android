@@ -37,7 +37,12 @@ fun ChatListScreen(
     }
 
     val chats = viewModel.chats
-    
+    val snackbarHostState = remember { SnackbarHostState() }
+    val errorMsg = viewModel.error
+    LaunchedEffect(errorMsg) {
+        if (errorMsg != null) snackbarHostState.showSnackbar(errorMsg)
+    }
+
     var debugTaps by remember { mutableIntStateOf(0) }
     var showUrlDialog by remember { mutableStateOf(false) }
     var tempUrl by remember { mutableStateOf("") }
@@ -84,6 +89,7 @@ fun ChatListScreen(
     }
 
     Scaffold(
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
                 title = { 

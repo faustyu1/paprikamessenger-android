@@ -18,6 +18,9 @@ class ChatListViewModel : ViewModel() {
     var isLoading by mutableStateOf(false)
         private set
 
+    var error by mutableStateOf<String?>(null)
+        private set
+
     init {
         loadChats()
     }
@@ -37,7 +40,7 @@ class ChatListViewModel : ViewModel() {
                     currentUser = userResponse.body()
                 }
             } catch (e: Exception) {
-                e.printStackTrace()
+                error = "Нет соединения с сервером"
             } finally {
                 isLoading = false
             }
