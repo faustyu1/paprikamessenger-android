@@ -235,7 +235,12 @@ class MainActivity : ComponentActivity() {
                             val userId = backStackEntry.arguments?.getString("userId") ?: "0"
                             ru.faustyu.paprika.ui.profile.UserProfileScreen(
                                 userId = userId,
-                                onBack = { navController.popBackStack() }
+                                onBack = { navController.popBackStack() },
+                                onChatClick = { chatId ->
+                                    navController.navigate("chat/$chatId") {
+                                        popUpTo("user_profile/$userId") { inclusive = true }
+                                    }
+                                }
                             )
                         }
 

@@ -27,10 +27,29 @@ import ru.faustyu.paprika.data.network.UserPublic
 class UserProfileViewModel(application: android.app.Application) : androidx.lifecycle.AndroidViewModel(application) {
     var user by mutableStateOf<UserPublic?>(null)
     var isLoading by mutableStateOf(false)
-    
+    var chatId by mutableStateOf<Long?>(null)
+
     // DB access
     private val db = ru.faustyu.paprika.data.db.DatabaseModule.provideDatabase(application)
     private val userDao = db.userDao()
+
+    fun startChat(userId: Long, onDone: (Long) -> Unit) {
+        viewModelScope.launch {
+            try {
+                val res = ru.faustyu.paprika.data.network.NetworkModule.api.createChat(
+                    ru.faustyu.paprika.data.network.CreateChatRequest(
+                        type = 0,
+                        title = "",
+                        description = "",
+                        recipient_id = userId
+                    )
+                )
+                if (res.isSuccessful) {
+                    res.body()?.let { onDone(it.id) }
+                }
+            } catch (_: Exception) {}
+        }
+    }
 
     fun loadUser(userId: String) {
         val uid = userId.toLongOrNull() ?: return
@@ -87,6 +106,7 @@ class UserProfileViewModel(application: android.app.Application) : androidx.life
 fun UserProfileScreen(
     userId: String,
     onBack: () -> Unit,
+    onChatClick: (String) -> Unit = {},
     viewModel: UserProfileViewModel = viewModel()
 ) {
     LaunchedEffect(userId) {
@@ -130,65 +150,100 @@ fun UserProfileScreen(
                             ),
                         contentAlignment = Alignment.Center
                     ) {
-                        // Avatar
                         val avatarUrl = user.avatar?.let { av ->
                             if (av.startsWith("http")) av else ru.faustyu.paprika.data.network.NetworkModule.baseUrl.removeSuffix("/") + av
                         }
-                        
-                        if (avatarUrl != null) {
-                            AsyncImage(
-                                model = avatarUrl,
-                                contentDescription = "Avatar",
-                                modifier = Modifier
-                                    .size(160.dp)
-                                    .clip(CircleShape)
-                                    .background(MaterialTheme.colorScheme.surface),
-                                contentScale = ContentScale.Crop
-                            )
-                        } else {
-                            Surface(
-                                shape = CircleShape,
-                                color = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(160.dp),
-                                shadowElevation = 8.dp
-                            ) {
-                                Box(contentAlignment = Alignment.Center) {
-                                    val initial = (user.first_name?.takeIf { it.isNotBlank() } ?: user.username).take(1).uppercase()
-                                    Text(
-                                        text = initial,
-                                        style = MaterialTheme.typography.displayLarge,
-                                        color = MaterialTheme.colorScheme.onPrimary
-                                    )
+                        Box {
+                            if (avatarUrl != null) {
+                                AsyncImage(
+                                    model = avatarUrl,
+                                    contentDescription = "Avatar",
+                                    modifier = Modifier
+                                        .size(160.dp)
+                                        .clip(CircleShape)
+                                        .background(MaterialTheme.colorScheme.surface),
+                                    contentScale = ContentScale.Crop
+                                )
+                            } else {
+                                Surface(
+                                    shape = CircleShape,
+                                    color = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(160.dp),
+                                    shadowElevation = 8.dp
+                                ) {
+                                    Box(contentAlignment = Alignment.Center) {
+                                        val initial = (user.first_name?.takeIf { it.isNotBlank() } ?: user.username).take(1).uppercase()
+                                        Text(
+                                            text = initial,
+                                            style = MaterialTheme.typography.displayLarge,
+                                            color = MaterialTheme.colorScheme.onPrimary
+                                        )
+                                    }
                                 }
+                            }
+                            if (user.is_online) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(20.dp)
+                                        .background(androidx.compose.ui.graphics.Color(0xFF4CAF50), CircleShape)
+                                        .align(Alignment.BottomEnd)
+                                )
                             }
                         }
                     }
 
                     Spacer(modifier = Modifier.height(24.dp))
-                    
-                    // Display Name (FirstName lastName)
+
                     val displayName = if (!user.first_name.isNullOrBlank()) {
                         "${user.first_name} ${user.last_name ?: ""}".trim()
                     } else {
                         user.username
                     }
-                    
+
                     Text(
                         text = displayName,
                         style = MaterialTheme.typography.headlineLarge,
                         fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
                     )
-                    
-                    // Username with @
+
                     Text(
                         text = "@${user.username}",
                         style = MaterialTheme.typography.titleMedium,
                         color = MaterialTheme.colorScheme.primary
                     )
 
-                    Spacer(modifier = Modifier.height(32.dp))
-                    
-                    // Bio Card
+                    Spacer(modifier = Modifier.height(4.dp))
+
+                    Text(
+                        text = if (user.is_online) "в сети" else if (user.last_seen > 0) {
+                            val diff = System.currentTimeMillis() / 1000 - user.last_seen
+                            when {
+                                diff < 60 -> "был(а) только что"
+                                diff < 3600 -> "был(а) ${diff / 60} мин. назад"
+                                diff < 86400 -> "был(а) ${diff / 3600} ч. назад"
+                                else -> "был(а) давно"
+                            }
+                        } else "",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = if (user.is_online) androidx.compose.ui.graphics.Color(0xFF4CAF50)
+                                else MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+
+                    Spacer(modifier = Modifier.height(24.dp))
+
+                    Button(
+                        onClick = {
+                            viewModel.startChat(user.id) { cid -> onChatClick(cid.toString()) }
+                        },
+                        modifier = Modifier.padding(horizontal = 32.dp).fillMaxWidth()
+                    ) {
+                        Icon(Icons.Default.Person, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Text("Написать сообщение")
+                    }
+
+                    Spacer(modifier = Modifier.height(24.dp))
+
                     if (!user.bio.isNullOrBlank()) {
                         Card(
                             modifier = Modifier
@@ -200,14 +255,14 @@ fun UserProfileScreen(
                             Column(modifier = Modifier.padding(20.dp)) {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     Icon(
-                                        Icons.Default.Person, 
-                                        contentDescription = null, 
+                                        Icons.Default.Person,
+                                        contentDescription = null,
                                         tint = MaterialTheme.colorScheme.primary,
                                         modifier = Modifier.size(20.dp)
                                     )
                                     Spacer(modifier = Modifier.width(8.dp))
                                     Text(
-                                        text = "About",
+                                        text = "О себе",
                                         style = MaterialTheme.typography.labelLarge,
                                         color = MaterialTheme.colorScheme.primary
                                     )
@@ -215,14 +270,11 @@ fun UserProfileScreen(
                                 Spacer(modifier = Modifier.height(8.dp))
                                 Text(
                                     text = user.bio,
-                                    style = MaterialTheme.typography.bodyLarge,
-                                    lineHeight = androidx.compose.ui.unit.TextUnit.Unspecified // Default
+                                    style = MaterialTheme.typography.bodyLarge
                                 )
                             }
                         }
                     }
-
-                    // Online Status indicator could go here...
                 }
             } else {
                  Text("User not found", modifier = Modifier.align(Alignment.Center))
