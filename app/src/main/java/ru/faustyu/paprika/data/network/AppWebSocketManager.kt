@@ -14,7 +14,7 @@ object AppWebSocketManager {
     private var webSocket: WebSocket? = null
     private val gson = Gson()
     private val listeners = ConcurrentHashMap<String, (Map<String, Any?>) -> Unit>()
-    private val mapType = object : TypeToken<Map<String, Any?>>() {}.type
+    private val mapType = TypeToken.getParameterized(Map::class.java, String::class.java, Any::class.java).type
 
     fun connect(token: String, baseUrl: String) {
         if (webSocket != null) return
