@@ -32,6 +32,7 @@ import ru.faustyu.paprika.ui.auth.AuthScreen
 import ru.faustyu.paprika.ui.call.*
 import ru.faustyu.paprika.ui.chat.VideoCircleRoute
 import ru.faustyu.paprika.ui.chat.VideoCircleScreen
+import ru.faustyu.paprika.ui.groups.GroupInfoScreen
 import ru.faustyu.paprika.ui.theme.PaprikaTheme
 import ru.faustyu.paprika.util.GitHubRelease
 import ru.faustyu.paprika.util.UpdateChecker
@@ -205,6 +206,22 @@ class MainActivity : ComponentActivity() {
                                 },
                                 onVideoCircleClick = {
                                     navController.navigate("video_circle/$chatId")
+                                },
+                                onGroupInfoClick = { gid ->
+                                    navController.navigate("group_info/$gid")
+                                }
+                            )
+                        }
+
+                        composable("group_info/{chatId}") { backStackEntry ->
+                            val chatId = backStackEntry.arguments?.getString("chatId") ?: return@composable
+                            GroupInfoScreen(
+                                chatId = chatId,
+                                onBack = { navController.popBackStack() },
+                                onGroupDeleted = {
+                                    navController.navigate("chat_list") {
+                                        popUpTo("chat_list") { inclusive = true }
+                                    }
                                 }
                             )
                         }

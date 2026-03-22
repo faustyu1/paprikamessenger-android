@@ -74,6 +74,28 @@ interface ApiService {
 
     @POST("/chats/{id}/members")
     suspend fun addChatMember(@retrofit2.http.Path("id") id: String, @Body request: AddMemberRequest): Response<Unit>
+
+    @GET("/chats/{id}/members")
+    suspend fun getChatMembers(@retrofit2.http.Path("id") id: String): Response<List<GroupMemberDto>>
+
+    @DELETE("/chats/{id}/members/{userId}")
+    suspend fun removeChatMember(@retrofit2.http.Path("id") id: String, @retrofit2.http.Path("userId") userId: Long): Response<Unit>
+
+    @POST("/chats/{id}/members/{userId}/promote")
+    suspend fun promoteChatMember(@retrofit2.http.Path("id") id: String, @retrofit2.http.Path("userId") userId: Long): Response<Unit>
+
+    @POST("/chats/{id}/members/{userId}/demote")
+    suspend fun demoteChatMember(@retrofit2.http.Path("id") id: String, @retrofit2.http.Path("userId") userId: Long): Response<Unit>
+
+    @POST("/chats/{id}/leave")
+    suspend fun leaveChat(@retrofit2.http.Path("id") id: String): Response<Unit>
+
+    @retrofit2.http.PUT("/chats/{id}")
+    suspend fun updateChat(@retrofit2.http.Path("id") id: String, @Body request: UpdateChatRequest): Response<ChatDto>
+
+    @DELETE("/chats/{id}")
+    suspend fun deleteChat(@retrofit2.http.Path("id") id: String): Response<Unit>
+
     @POST("/chats/{id}/read")
     suspend fun markChatRead(@retrofit2.http.Path("id") id: String): Response<Unit>
 
@@ -181,4 +203,19 @@ data class CreateChatRequest(
     val title: String,
     val description: String,
     val recipient_id: Long? = null
+)
+
+data class GroupMemberDto(
+    val user_id: Long,
+    val username: String,
+    val first_name: String = "",
+    val last_name: String = "",
+    val avatar: String = "",
+    val role: String,
+    val is_online: Boolean = false
+)
+
+data class UpdateChatRequest(
+    val title: String = "",
+    val description: String = ""
 )

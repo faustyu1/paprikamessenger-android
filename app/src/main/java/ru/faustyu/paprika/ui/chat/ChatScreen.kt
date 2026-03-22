@@ -46,6 +46,7 @@ fun ChatScreen(
     onBack: () -> Unit,
     onCallClick: (Long, String, String) -> Unit = { _, _, _ -> },
     onVideoCircleClick: () -> Unit = {},
+    onGroupInfoClick: (String) -> Unit = {},
     viewModel: ChatViewModel = androidx.lifecycle.viewmodel.compose.viewModel()
 ) {
     val context = LocalContext.current
@@ -215,6 +216,11 @@ fun ChatScreen(
                             Icon(Icons.Filled.Call, contentDescription = "Call")
                         }
                     }
+                    if (isGroup) {
+                        IconButton(onClick = { onGroupInfoClick(chatId) }) {
+                            Icon(Icons.Filled.Info, contentDescription = "Group Info")
+                        }
+                    }
                     Box {
                         IconButton(onClick = { showMenu = true }) {
                             Icon(Icons.Filled.MoreVert, contentDescription = "More")
@@ -222,14 +228,10 @@ fun ChatScreen(
                         DropdownMenu(expanded = showMenu, onDismissRequest = { showMenu = false }) {
                             if (isGroup) {
                                 DropdownMenuItem(
-                                    text = { Text("Add Member") },
+                                    text = { Text("Добавить участника") },
                                     onClick = { showMenu = false; showAddMemberDialog = true }
                                 )
                             }
-                            DropdownMenuItem(
-                                text = { Text("Clear History") },
-                                onClick = { showMenu = false }
-                            )
                         }
                     }
                 }
