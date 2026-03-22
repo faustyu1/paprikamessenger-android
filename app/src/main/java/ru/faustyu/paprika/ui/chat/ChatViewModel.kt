@@ -69,6 +69,11 @@ class ChatViewModel(application: android.app.Application) : androidx.lifecycle.A
     fun connect(token: String, chatId: String) {
         val cid = if (chatId == "paprika_system") 1L else chatId.toLongOrNull() ?: 0L
         currentChatId = cid
+        chatTitle.value = ""
+        chatSubtitle.value = ""
+        chatAvatar.value = null
+        isGroup.value = false
+        otherUserId.value = null
 
         // Observe local DB
         viewModelScope.launch {
