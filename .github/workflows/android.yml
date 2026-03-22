@@ -27,6 +27,7 @@ jobs:
       - name: Decode Keystore
         run: |
           echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > paprika-release.jks
+          keytool -list -keystore paprika-release.jks -storepass "${{ secrets.STORE_PASSWORD }}" -noprompt 2>&1 || echo "KEYSTORE CHECK FAILED"
 
       - name: Build Release APK
         run: ./gradlew assembleRelease
