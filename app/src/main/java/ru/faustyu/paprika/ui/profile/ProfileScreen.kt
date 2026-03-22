@@ -161,6 +161,7 @@ class ProfileViewModel : ViewModel() {
 fun ProfileScreen(
     onBack: () -> Unit,
     onLogout: () -> Unit,
+    onSettingsClick: () -> Unit = {},
     viewModel: ProfileViewModel = viewModel()
 ) {
     val context = LocalContext.current
@@ -305,6 +306,15 @@ fun ProfileScreen(
             
             Spacer(modifier = Modifier.height(24.dp))
             
+            OutlinedButton(
+                onClick = onSettingsClick,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("Настройки")
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
             OutlinedButton(
                 onClick = onLogout,
                 modifier = Modifier.fillMaxWidth(),

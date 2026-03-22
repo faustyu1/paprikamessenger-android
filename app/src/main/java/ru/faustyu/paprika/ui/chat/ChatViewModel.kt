@@ -12,6 +12,8 @@ import ru.faustyu.paprika.data.network.NetworkModule
 
 data class ReactionGroup(val emoji: String, val count: Int, val isMine: Boolean = false)
 
+data class PollOptionUi(val id: Long, val text: String, val votesCount: Int, val isVotedByMe: Boolean)
+
 data class Message(
     val id: Long = 0,
     val content: String,
@@ -24,7 +26,10 @@ data class Message(
     val replyToType: String? = null,
     val replyToSenderId: Long? = null,
     val forwardedFromName: String? = null,
-    val reactions: List<ReactionGroup> = emptyList()
+    val reactions: List<ReactionGroup> = emptyList(),
+    val pollId: Long? = null,
+    val pollQuestion: String? = null,
+    val pollOptions: List<PollOptionUi> = emptyList()
 )
 
 class ChatViewModel(application: android.app.Application) : androidx.lifecycle.AndroidViewModel(application) {
@@ -222,7 +227,12 @@ class ChatViewModel(application: android.app.Application) : androidx.lifecycle.A
                                     if (!u.first_name.isNullOrBlank()) "${u.first_name} ${u.last_name ?: ""}".trim()
                                     else u.username
                                 },
-                                reactions = dto.reactions.map { r -> ReactionGroup(r.emoji, r.count.toInt(), r.is_mine) }
+                                reactions = dto.reactions.map { r -> ReactionGroup(r.emoji, r.count.toInt(), r.is_mine) },
+                                pollId = dto.poll?.id,
+                                pollQuestion = dto.poll?.question,
+                                pollOptions = dto.poll?.options?.map { o ->
+                                    PollOptionUi(o.id, o.text, o.votes_count.toInt(), o.is_voted_by_me)
+                                } ?: emptyList()
                             )
                         }
                     }
@@ -589,6 +599,80 @@ class ChatViewModel(application: android.app.Application) : androidx.lifecycle.A
                 pinnedMessage.value = null
             } catch (e: Exception) {
                 snackbarMessage.value = "Не удалось открепить сообщение"
+            }
+        }
+    }
+
+    fun sendPoll(chatId: String, question: String, options: List<String>, isMultiple: Boolean = false) {
+        if (question.isBlank() || options.size < 2) return
+        viewModelScope.launch {
+            try {
+                val optionsJson = options.joinToString(",") { "\"${it.replace("\"", "\\\"")}\"" }
+                val content = """{"question":"${question.replace("\"","\\\"")}","options":[$optionsJson],"is_multiple":$isMultiple}"""
+                NetworkModule.api.sendMessage(
+                    chatId,
+                    ru.faustyu.paprika.data.network.SendMessageDto(content = content, type = "poll")
+                )
+            } catch (e: Exception) {
+                snackbarMessage.value = "Не удалось создать опрос"
+            }
+        }
+    }
+
+    fun votePoll(pollId: Long, optionId: Long, msgId: Long) {
+        viewModelScope.launch {
+            try {
+                val resp = NetworkModule.api.votePoll(pollId, ru.faustyu.paprika.data.network.PollVoteRequest(optionId))
+                if (resp.isSuccessful) {
+                    val poll = resp.body() ?: return@launch
+                    val idx = _messages.indexOfFirst { it.id == msgId }
+                    if (idx >= 0) {
+                        _messages[idx] = _messages[idx].copy(
+                            pollOptions = poll.options.map { o ->
+                                PollOptionUi(o.id, o.text, o.votes_count.toInt(), o.is_voted_by_me)
+                            }
+                        )
+                    }
+                }
+            } catch (e: Exception) {
+                snackbarMessage.value = "Ошибка голосования"
+            }
+        }
+    }
+
+    fun exportChat(chatId: String, context: android.content.Context) {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val resp = NetworkModule.api.getChatMessages(chatId)
+                if (resp.isSuccessful) {
+                    val messages = resp.body() ?: return@launch
+                    val sb = StringBuilder()
+                    sb.appendLine("Экспорт чата")
+                    sb.appendLine("=============")
+                    messages.reversed().forEach { msg ->
+                        val time = try {
+                            val inst = java.time.Instant.parse(msg.created_at)
+                            java.time.format.DateTimeFormatter
+                                .ofPattern("dd.MM.yyyy HH:mm")
+                                .withZone(java.time.ZoneId.systemDefault())
+                                .format(inst)
+                        } catch (_: Exception) { msg.created_at }
+                        sb.appendLine("[$time] ${msg.sender_id}: ${msg.content}")
+                    }
+                    val fileName = "chat_${chatId}_export.txt"
+                    val resolver = context.contentResolver
+                    val values = android.content.ContentValues().apply {
+                        put(android.provider.MediaStore.Downloads.DISPLAY_NAME, fileName)
+                        put(android.provider.MediaStore.Downloads.MIME_TYPE, "text/plain")
+                    }
+                    val uri = resolver.insert(android.provider.MediaStore.Downloads.EXTERNAL_CONTENT_URI, values)
+                    uri?.let {
+                        resolver.openOutputStream(it)?.use { os -> os.write(sb.toString().toByteArray()) }
+                    }
+                    viewModelScope.launch { snackbarMessage.value = "История чата сохранена в загрузки" }
+                }
+            } catch (e: Exception) {
+                viewModelScope.launch { snackbarMessage.value = "Ошибка экспорта" }
             }
         }
     }

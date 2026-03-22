@@ -33,6 +33,9 @@ import ru.faustyu.paprika.ui.call.*
 import ru.faustyu.paprika.ui.chat.VideoCircleRoute
 import ru.faustyu.paprika.ui.chat.VideoCircleScreen
 import ru.faustyu.paprika.ui.groups.GroupInfoScreen
+import ru.faustyu.paprika.ui.settings.SessionsScreen
+import ru.faustyu.paprika.ui.settings.SettingsScreen
+import ru.faustyu.paprika.ui.chat.MediaGalleryScreen
 import ru.faustyu.paprika.ui.theme.PaprikaTheme
 import ru.faustyu.paprika.util.GitHubRelease
 import ru.faustyu.paprika.util.UpdateChecker
@@ -80,7 +83,8 @@ class MainActivity : ComponentActivity() {
         }
 
         setContent {
-            PaprikaTheme {
+            val darkTheme = remember { mutableStateOf(prefs.darkTheme) }
+            PaprikaTheme(darkTheme = darkTheme.value) {
                 Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
                     val callViewModel: CallViewModel = viewModel()
                     val callState by callViewModel.callState.collectAsState()
@@ -176,7 +180,27 @@ class MainActivity : ComponentActivity() {
                                     navController.navigate("auth") {
                                         popUpTo(0) { inclusive = true }
                                     }
-                                }
+                                },
+                                onSettingsClick = { navController.navigate("settings") }
+                            )
+                        }
+
+                        composable("settings") {
+                            SettingsScreen(
+                                onBack = { navController.popBackStack() },
+                                onSessionsClick = { navController.navigate("sessions") }
+                            )
+                        }
+
+                        composable("sessions") {
+                            SessionsScreen(onBack = { navController.popBackStack() })
+                        }
+
+                        composable("media_gallery/{chatId}") { backStackEntry ->
+                            val chatId = backStackEntry.arguments?.getString("chatId") ?: return@composable
+                            MediaGalleryScreen(
+                                chatId = chatId,
+                                onBack = { navController.popBackStack() }
                             )
                         }
 
@@ -222,7 +246,8 @@ class MainActivity : ComponentActivity() {
                                     navController.navigate("chat_list") {
                                         popUpTo("chat_list") { inclusive = true }
                                     }
-                                }
+                                },
+                                onMediaClick = { cid -> navController.navigate("media_gallery/$cid") }
                             )
                         }
 

@@ -17,6 +17,7 @@ import androidx.compose.foundation.gestures.rememberDraggableState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.ClickableText
@@ -34,10 +35,15 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontStyle
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.IntOffset
@@ -53,6 +59,11 @@ import kotlinx.coroutines.launch
 import ru.faustyu.paprika.data.PrefsManager
 import ru.faustyu.paprika.data.network.NetworkModule
 import ru.faustyu.paprika.util.VoiceRecorder
+
+sealed class ChatListItem {
+    data class MessageItem(val message: Message) : ChatListItem()
+    data class DateSeparator(val dateStr: String) : ChatListItem()
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -103,6 +114,8 @@ fun ChatScreen(
     var showAddMemberDialog by remember { mutableStateOf(false) }
     var isRecordingVoice by remember { mutableStateOf(false) }
     var recordingDuration by remember { mutableIntStateOf(0) }
+    var showStickerSheet by remember { mutableStateOf(false) }
+    val stickers = remember { listOf("😀","😂","❤️","👍","🎉","😎","🤔","😢","🔥","✨","💯","🙏","😍","😭","🤣","😊","👀","💪","🎊","🌟") }
 
     val title = viewModel.chatTitle.value
     val subtitle = viewModel.chatSubtitle.value
@@ -330,6 +343,41 @@ fun ChatScreen(
             },
             onDismiss = { showForwardSheet = false }
         )
+    }
+
+    // Sticker picker sheet
+    if (showStickerSheet) {
+        androidx.compose.material3.ModalBottomSheet(
+            onDismissRequest = { showStickerSheet = false }
+        ) {
+            Text(
+                "Стикеры",
+                style = MaterialTheme.typography.titleMedium,
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+            )
+            androidx.compose.foundation.lazy.grid.LazyVerticalGrid(
+                columns = androidx.compose.foundation.lazy.grid.GridCells.Fixed(5),
+                modifier = Modifier.padding(horizontal = 8.dp).heightIn(max = 300.dp),
+                contentPadding = PaddingValues(bottom = 32.dp)
+            ) {
+                items(stickers.size) { index ->
+                    val sticker = stickers[index]
+                    Box(
+                        modifier = Modifier
+                            .padding(4.dp)
+                            .size(56.dp)
+                            .clip(RoundedCornerShape(8.dp))
+                            .clickable {
+                                viewModel.sendMessage(chatId, sticker)
+                                showStickerSheet = false
+                            },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(sticker, style = MaterialTheme.typography.headlineMedium)
+                    }
+                }
+            }
+        }
     }
 
     Scaffold(
@@ -615,6 +663,9 @@ fun ChatScreen(
                         IconButton(onClick = onVideoCircleClick) {
                             Icon(Icons.Filled.RadioButtonChecked, contentDescription = "Видеосообщение")
                         }
+                        IconButton(onClick = { showStickerSheet = true }) {
+                            Icon(Icons.Filled.EmojiEmotions, contentDescription = "Стикеры")
+                        }
                     }
                 }
             }
@@ -624,20 +675,98 @@ fun ChatScreen(
         val displayMessages = if (searchText.isBlank()) viewModel.messages
             else viewModel.messages.filter { it.content.contains(searchText, ignoreCase = true) }
 
-        LazyColumn(
-            modifier = Modifier
-                .padding(padding)
-                .fillMaxSize(),
-            contentPadding = PaddingValues(8.dp),
-            reverseLayout = true
-        ) {
-            items(displayMessages) { message ->
-                MessageBubble(
-                    message = message,
-                    chatId = chatId,
-                    onLongPress = { selectedMessage = message },
-                    onReply = { viewModel.setReply(message) }
-                )
+        val chatItems = remember(displayMessages) {
+            if (displayMessages.isEmpty()) return@remember emptyList<ChatListItem>()
+            val result = mutableListOf<ChatListItem>()
+            displayMessages.forEachIndexed { index, msg ->
+                result.add(ChatListItem.MessageItem(msg))
+                val msgDate = run {
+                    val inst = java.time.Instant.ofEpochSecond(msg.timestamp)
+                    val today = java.time.LocalDate.now()
+                    val ld = inst.atZone(java.time.ZoneId.systemDefault()).toLocalDate()
+                    when {
+                        ld == today -> "Сегодня"
+                        ld == today.minusDays(1) -> "Вчера"
+                        else -> ld.format(java.time.format.DateTimeFormatter.ofPattern("d MMMM yyyy", java.util.Locale("ru")))
+                    }
+                }
+                val nextDate = displayMessages.getOrNull(index + 1)?.let { nm ->
+                    val inst = java.time.Instant.ofEpochSecond(nm.timestamp)
+                    val today = java.time.LocalDate.now()
+                    val ld = inst.atZone(java.time.ZoneId.systemDefault()).toLocalDate()
+                    when {
+                        ld == today -> "Сегодня"
+                        ld == today.minusDays(1) -> "Вчера"
+                        else -> ld.format(java.time.format.DateTimeFormatter.ofPattern("d MMMM yyyy", java.util.Locale("ru")))
+                    }
+                }
+                if (nextDate == null || nextDate != msgDate) {
+                    result.add(ChatListItem.DateSeparator(msgDate))
+                }
+            }
+            result
+        }
+
+        val listState = rememberLazyListState()
+        val showScrollToBottom by remember { derivedStateOf { listState.firstVisibleItemIndex > 5 } }
+
+        Box(modifier = Modifier.padding(padding).fillMaxSize()) {
+            LazyColumn(
+                state = listState,
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(8.dp),
+                reverseLayout = true
+            ) {
+                items(
+                    chatItems,
+                    key = { item ->
+                        when (item) {
+                            is ChatListItem.MessageItem -> "msg_${item.message.id}"
+                            is ChatListItem.DateSeparator -> "sep_${item.dateStr}"
+                        }
+                    }
+                ) { item ->
+                    when (item) {
+                        is ChatListItem.DateSeparator -> {
+                            Box(
+                                modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Surface(
+                                    shape = RoundedCornerShape(12.dp),
+                                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.8f)
+                                ) {
+                                    Text(
+                                        item.dateStr,
+                                        style = MaterialTheme.typography.labelSmall,
+                                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
+                                    )
+                                }
+                            }
+                        }
+                        is ChatListItem.MessageItem -> {
+                            MessageBubble(
+                                message = item.message,
+                                chatId = chatId,
+                                onLongPress = { selectedMessage = item.message },
+                                onReply = { viewModel.setReply(item.message) }
+                            )
+                        }
+                    }
+                }
+            }
+            if (showScrollToBottom) {
+                val scope = rememberCoroutineScope()
+                FloatingActionButton(
+                    onClick = { scope.launch { listState.animateScrollToItem(0) } },
+                    modifier = Modifier
+                        .align(Alignment.BottomEnd)
+                        .padding(end = 16.dp, bottom = 8.dp)
+                        .size(40.dp),
+                    containerColor = MaterialTheme.colorScheme.primaryContainer
+                ) {
+                    Icon(Icons.Filled.KeyboardArrowDown, contentDescription = "Scroll to bottom", modifier = Modifier.size(20.dp))
+                }
             }
         }
     }
@@ -657,8 +786,17 @@ private fun MessageBubble(
 
     var swipeOffset by remember { mutableFloatStateOf(0f) }
     val coroutineScope = rememberCoroutineScope()
+    val haptic = LocalHapticFeedback.current
+    var hapticFired by remember { mutableStateOf(false) }
     val draggableState = rememberDraggableState { delta ->
-        if (delta > 0) swipeOffset = (swipeOffset + delta).coerceAtMost(72f)
+        if (delta > 0) {
+            val newOffset = (swipeOffset + delta).coerceAtMost(72f)
+            if (newOffset >= 48f && swipeOffset < 48f && !hapticFired) {
+                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                hapticFired = true
+            }
+            swipeOffset = newOffset
+        }
     }
 
     Box(
@@ -670,6 +808,7 @@ private fun MessageBubble(
                 orientation = Orientation.Horizontal,
                 onDragStopped = {
                     if (swipeOffset >= 48f) onReply()
+                    hapticFired = false
                     coroutineScope.launch {
                         animate(swipeOffset, 0f) { v, _ -> swipeOffset = v }
                     }
@@ -740,6 +879,41 @@ private fun MessageBubble(
                                         try { uriHandler.openUri(mediaUrl(message.content)) } catch (_: Exception) {}
                                     }, modifier = Modifier.size(32.dp)) {
                                         Icon(Icons.Filled.Download, contentDescription = "Скачать", modifier = Modifier.size(20.dp))
+                                    }
+                                }
+                            }
+
+                            "poll" -> {
+                                Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Icon(Icons.Filled.Poll, contentDescription = null, modifier = Modifier.size(16.dp))
+                                        Spacer(Modifier.width(4.dp))
+                                        Text("Опрос", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
+                                    }
+                                    Spacer(Modifier.height(4.dp))
+                                    try {
+                                        val pollData = com.google.gson.Gson().fromJson(message.content, com.google.gson.JsonObject::class.java)
+                                        Text(pollData.get("question")?.asString ?: message.content, style = MaterialTheme.typography.bodyMedium)
+                                        val options = pollData.getAsJsonArray("options")
+                                        options?.forEach { opt ->
+                                            val optObj = opt.asJsonObject
+                                            val optText = optObj.get("text")?.asString ?: opt.asString
+                                            Row(
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .padding(vertical = 4.dp)
+                                                    .clip(RoundedCornerShape(8.dp))
+                                                    .background(MaterialTheme.colorScheme.surfaceVariant)
+                                                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                Text(optText, style = MaterialTheme.typography.bodySmall, modifier = Modifier.weight(1f))
+                                                val votes = optObj.get("votes_count")?.asLong ?: 0L
+                                                if (votes > 0) Text("$votes", style = MaterialTheme.typography.labelSmall)
+                                            }
+                                        }
+                                    } catch (e: Exception) {
+                                        Text(message.content)
                                     }
                                 }
                             }
@@ -831,20 +1005,51 @@ private fun ClickableMessageText(text: String, modifier: Modifier = Modifier) {
 
     val annotated = remember(text) {
         buildAnnotatedString {
-            val regex = Regex("(https?://[^\\s]+|@\\w+)")
+            // Combined regex: formatting markers + URLs + mentions
+            val combinedRegex = Regex("""\*\*(.*?)\*\*|_(.*?)_|`(.*?)`|\*(.*?)\*|(https?://[^\s]+|@\w+)""")
             var cursor = 0
-            regex.findAll(text).forEach { match ->
+            combinedRegex.findAll(text).forEach { match ->
                 if (match.range.first > cursor) {
                     withStyle(SpanStyle(color = textColor)) {
                         append(text.substring(cursor, match.range.first))
                     }
                 }
-                val isMention = match.value.startsWith("@")
-                pushStringAnnotation(if (isMention) "MENTION" else "URL", match.value)
-                withStyle(SpanStyle(color = linkColor, textDecoration = TextDecoration.Underline)) {
-                    append(match.value)
+                when {
+                    match.groups[1] != null -> {
+                        // **bold**
+                        withStyle(SpanStyle(color = textColor, fontWeight = FontWeight.Bold)) {
+                            append(match.groups[1]!!.value)
+                        }
+                    }
+                    match.groups[2] != null -> {
+                        // _italic_
+                        withStyle(SpanStyle(color = textColor, fontStyle = FontStyle.Italic)) {
+                            append(match.groups[2]!!.value)
+                        }
+                    }
+                    match.groups[3] != null -> {
+                        // `code`
+                        withStyle(SpanStyle(color = textColor, fontFamily = FontFamily.Monospace, background = Color.Gray.copy(alpha = 0.2f))) {
+                            append(match.groups[3]!!.value)
+                        }
+                    }
+                    match.groups[4] != null -> {
+                        // *italic*
+                        withStyle(SpanStyle(color = textColor, fontStyle = FontStyle.Italic)) {
+                            append(match.groups[4]!!.value)
+                        }
+                    }
+                    match.groups[5] != null -> {
+                        // URL or @mention
+                        val value = match.groups[5]!!.value
+                        val isMention = value.startsWith("@")
+                        pushStringAnnotation(if (isMention) "MENTION" else "URL", value)
+                        withStyle(SpanStyle(color = linkColor, textDecoration = TextDecoration.Underline)) {
+                            append(value)
+                        }
+                        pop()
+                    }
                 }
-                pop()
                 cursor = match.range.last + 1
             }
             if (cursor < text.length) {

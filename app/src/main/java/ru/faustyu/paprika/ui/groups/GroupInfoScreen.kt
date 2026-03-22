@@ -207,6 +207,7 @@ fun GroupInfoScreen(
     chatId: String,
     onBack: () -> Unit,
     onGroupDeleted: () -> Unit,
+    onMediaClick: (String) -> Unit = {},
     viewModel: GroupInfoViewModel = viewModel()
 ) {
     val snackbarHostState = remember { SnackbarHostState() }
@@ -460,6 +461,14 @@ fun GroupInfoScreen(
                     }
                     HorizontalDivider()
                 }
+
+                ListItem(
+                    headlineContent = { Text("Медиафайлы") },
+                    supportingContent = { Text("Фото и видео") },
+                    leadingContent = { Icon(Icons.Filled.PhotoLibrary, contentDescription = null) },
+                    modifier = Modifier.clickable { onMediaClick(chatId) }
+                )
+                HorizontalDivider()
 
                 if (!isOwner) {
                     ListItem(

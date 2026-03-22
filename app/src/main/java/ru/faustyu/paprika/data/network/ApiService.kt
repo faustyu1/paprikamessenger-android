@@ -159,22 +159,35 @@ interface ApiService {
 
     @POST("/invite/{token}/join")
     suspend fun joinByInvite(@retrofit2.http.Path("token") token: String): Response<Map<String, Long>>
-}
 
-data class ChatDto(
-    val id: Long,
-    val type: Int,
-    val title: String,
-    val description: String,
-    val avatar: String,
-    val owner_id: Long,
-    val last_message_preview: String?,
-    val last_message_at: Long,
-    val members_count: Long = 0,
-    val online_count: Long = 0,
-    val other_user_id: Long = 0,
-    val unread_count: Long = 0
-)
+    // Sessions
+    @GET("/sessions")
+    suspend fun getSessions(): Response<List<ru.faustyu.paprika.ui.settings.SessionDto>>
+
+    @DELETE("/sessions/{id}")
+    suspend fun deleteSession(@retrofit2.http.Path("id") id: String): Response<Unit>
+
+    // Polls
+    @GET("/polls/{id}")
+    suspend fun getPoll(@retrofit2.http.Path("id") id: Long): Response<PollDto>
+
+    @POST("/polls/{id}/vote")
+    suspend fun votePoll(@retrofit2.http.Path("id") id: Long, @Body request: PollVoteRequest): Response<PollDto>
+
+    // Chat preferences
+    @POST("/chats/{id}/mute")
+    suspend fun muteChat(@retrofit2.http.Path("id") id: String, @Body request: MuteChatRequest): Response<Unit>
+
+    @POST("/chats/{id}/archive")
+    suspend fun archiveChat(@retrofit2.http.Path("id") id: String): Response<Unit>
+
+    @POST("/chats/{id}/pin_chat")
+    suspend fun pinChat(@retrofit2.http.Path("id") id: String): Response<Unit>
+
+    // Stickers
+    @GET("/stickers/packs")
+    suspend fun getStickerPacks(): Response<List<StickerPackDto>>
+}
 
 data class ReplyToDto(
     val id: Long,
@@ -195,7 +208,8 @@ data class MessageDto(
     val reply_to_message_id: Long? = null,
     val reply_to_message: ReplyToDto? = null,
     val forwarded_from_user: ForwardedUserDto? = null,
-    val reactions: List<ReactionCount> = emptyList()
+    val reactions: List<ReactionCount> = emptyList(),
+    val poll: PollDto? = null
 )
 
 data class ForwardedUserDto(
@@ -304,4 +318,53 @@ data class InviteChatInfo(
     val description: String,
     val avatar: String,
     val members_count: Long
+)
+
+data class PollOptionDto(
+    val id: Long,
+    val text: String,
+    val votes_count: Long = 0,
+    val is_voted_by_me: Boolean = false
+)
+
+data class PollDto(
+    val id: Long,
+    val question: String,
+    val is_multiple: Boolean = false,
+    val is_closed: Boolean = false,
+    val options: List<PollOptionDto> = emptyList()
+)
+
+data class PollVoteRequest(val option_id: Long)
+
+data class MuteChatRequest(val mute_until: Long)
+
+data class StickerDto(
+    val id: Long,
+    val emoji: String = "",
+    val file_url: String
+)
+
+data class StickerPackDto(
+    val id: Long,
+    val name: String,
+    val stickers: List<StickerDto> = emptyList()
+)
+
+data class ChatDto(
+    val id: Long,
+    val type: Int,
+    val title: String,
+    val description: String,
+    val avatar: String,
+    val owner_id: Long,
+    val last_message_preview: String?,
+    val last_message_at: Long,
+    val members_count: Long = 0,
+    val online_count: Long = 0,
+    val other_user_id: Long = 0,
+    val unread_count: Long = 0,
+    val mute_until: Long = 0,
+    val is_archived: Boolean = false,
+    val is_pinned: Boolean = false
 )

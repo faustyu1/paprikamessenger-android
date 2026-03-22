@@ -62,6 +62,32 @@ class ChatListViewModel : ViewModel() {
         }
     }
 
+    fun muteChat(chatId: String, muteUntil: Long) {
+        viewModelScope.launch {
+            try {
+                ru.faustyu.paprika.data.network.NetworkModule.api.muteChat(chatId, ru.faustyu.paprika.data.network.MuteChatRequest(muteUntil))
+            } catch (_: Exception) {}
+        }
+    }
+
+    fun archiveChat(chatId: String) {
+        viewModelScope.launch {
+            try {
+                ru.faustyu.paprika.data.network.NetworkModule.api.archiveChat(chatId)
+                loadChats()
+            } catch (_: Exception) {}
+        }
+    }
+
+    fun pinChat(chatId: String) {
+        viewModelScope.launch {
+            try {
+                ru.faustyu.paprika.data.network.NetworkModule.api.pinChat(chatId)
+                loadChats()
+            } catch (_: Exception) {}
+        }
+    }
+
     override fun onCleared() {
         super.onCleared()
         AppWebSocketManager.removeListener("chatlist_vm")
