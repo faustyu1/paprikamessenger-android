@@ -3,6 +3,8 @@ package ru.faustyu.paprika.ui.chat
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -38,9 +40,15 @@ fun ChatListScreen(
     viewModel: ChatListViewModel = androidx.lifecycle.viewmodel.compose.viewModel(),
     onUrlChanged: (String) -> Unit
 ) {
-    // Refresh chats whenever this screen is active/visible
-    LaunchedEffect(Unit) {
-        viewModel.loadChats()
+    // Reload chats every time the screen resumes (e.g. after navigating back)
+    val lifecycle = LocalLifecycleOwner.current.lifecycle
+    LaunchedEffect(Unit) { viewModel.loadChats() }
+    DisposableEffect(lifecycle) {
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) viewModel.loadChats()
+        }
+        lifecycle.addObserver(observer)
+        onDispose { lifecycle.removeObserver(observer) }
     }
 
     val chats = viewModel.chats
