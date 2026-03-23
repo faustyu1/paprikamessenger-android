@@ -82,7 +82,7 @@ class AuthViewModel : ViewModel() {
                     error = serverError ?: "Ошибка ${response.code()}"
                 }
             } catch (e: Exception) {
-                error = "Нет соединения с сервером"
+                error = e.javaClass.simpleName + ": " + e.message
             } finally {
                 isLoading = false
             }
