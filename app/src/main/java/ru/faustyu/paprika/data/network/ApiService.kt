@@ -1,5 +1,6 @@
 package ru.faustyu.paprika.data.network
 
+import com.google.gson.annotations.SerializedName
 import retrofit2.Response
 import retrofit2.http.Body
 import retrofit2.http.DELETE
@@ -8,12 +9,11 @@ import retrofit2.http.POST
 import retrofit2.http.Query
 
 data class AuthRequest(
-    val username: String,
-    val password: String,
-    // Optional public key for registration
-    val public_key: String? = null,
-    val first_name: String? = null,
-    val last_name: String? = null
+    @SerializedName("username") val username: String,
+    @SerializedName("password") val password: String,
+    @SerializedName("public_key") val public_key: String? = null,
+    @SerializedName("first_name") val first_name: String = "",
+    @SerializedName("last_name") val last_name: String = ""
 )
 
 data class AuthResponse(

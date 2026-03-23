@@ -35,3 +35,4 @@
 
 # Data models (all DTOs must survive R8)
 -keep class ru.faustyu.paprika.data.** { *; }
+-keepclassmembers class ru.faustyu.paprika.data.** { *; }
