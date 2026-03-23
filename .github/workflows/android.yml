@@ -2,13 +2,41 @@ name: Android CI/CD
 
 on:
   push:
-    tags:
-      - 'v*'
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version (e.g. 1.30)'
+        required: true
 
 jobs:
   build:
-    name: Build & Release
+    name: Build
     runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: 'gradle'
+
+      - name: Grant Execute Permission for Gradlew
+        run: chmod +x gradlew
+
+      - name: Build Debug APK
+        run: ./gradlew assembleDebug
+
+  release:
+    name: Release
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch'
     permissions:
       contents: write
 
@@ -27,8 +55,7 @@ jobs:
         run: chmod +x gradlew
 
       - name: Decode Keystore
-        run: |
-          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > paprika-release.jks
+        run: echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > paprika-release.jks
 
       - name: Build Release APK
         run: ./gradlew assembleRelease
@@ -39,14 +66,15 @@ jobs:
 
       - name: Rename APK
         run: |
-          TAG=${GITHUB_REF#refs/tags/}
-          find app/build/outputs/apk/release/ -name "*.apk" | head -1 | xargs -I{} mv {} app/build/outputs/apk/release/PaprikaMessenger-${TAG}.apk
+          mv app/build/outputs/apk/release/app-release.apk \
+             app/build/outputs/apk/release/PaprikaMessenger-v${{ github.event.inputs.version }}.apk
 
-      - name: Create Release
+      - name: Create Tag and Release
         uses: softprops/action-gh-release@v2
-        if: startsWith(github.ref, 'refs/tags/')
         with:
-          files: app/build/outputs/apk/release/PaprikaMessenger-*.apk
+          tag_name: v${{ github.event.inputs.version }}
+          name: v${{ github.event.inputs.version }}
+          files: app/build/outputs/apk/release/PaprikaMessenger-v${{ github.event.inputs.version }}.apk
           draft: false
           prerelease: false
           generate_release_notes: true
