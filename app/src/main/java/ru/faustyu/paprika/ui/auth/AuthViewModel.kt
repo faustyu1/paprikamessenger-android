@@ -45,6 +45,10 @@ class AuthViewModel : ViewModel() {
                 error = "Логин не может начинаться с цифры"
                 return
             }
+            if (!username.matches(Regex("[a-zA-Z0-9_]+"))) {
+                error = "Логин может содержать только латинские буквы, цифры и _"
+                return
+            }
             if (password.length < 8) {
                 error = "Пароль минимум 8 символов"
                 return
