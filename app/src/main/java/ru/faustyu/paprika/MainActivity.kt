@@ -318,7 +318,11 @@ class MainActivity : androidx.appcompat.app.AppCompatActivity() {
                             val isChannel = backStackEntry.arguments?.getBoolean("isChannel") ?: false
                             ru.faustyu.paprika.ui.groups.CreateGroupScreen(
                                 onBack = { navController.popBackStack() },
-                                onSuccess = { navController.popBackStack() },
+                                onSuccess = { chatId ->
+                                    navController.navigate("chat/$chatId") {
+                                        popUpTo("search") { inclusive = true }
+                                    }
+                                },
                                 isChannel = isChannel
                             )
                         }

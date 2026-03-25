@@ -31,7 +31,7 @@ class CreateGroupViewModel : ViewModel() {
     var isChannel by mutableStateOf(false)
     var isLoading by mutableStateOf(false)
 
-    fun createChat(onSuccess: () -> Unit) {
+    fun createChat(onSuccess: (String) -> Unit) {
         viewModelScope.launch {
             isLoading = true
             try {
@@ -40,7 +40,8 @@ class CreateGroupViewModel : ViewModel() {
                 val request = CreateChatRequest(type, title, description)
                 val response = NetworkModule.api.createChat(request)
                 if (response.isSuccessful) {
-                    onSuccess()
+                    val chatId = response.body()?.id?.toString()
+                    if (chatId != null) onSuccess(chatId)
                 }
             } catch (e: Exception) {
                 // Handle Error
@@ -55,7 +56,7 @@ class CreateGroupViewModel : ViewModel() {
 @Composable
 fun CreateGroupScreen(
     onBack: () -> Unit,
-    onSuccess: () -> Unit,
+    onSuccess: (String) -> Unit,
     isChannel: Boolean = false,
     viewModel: CreateGroupViewModel = androidx.lifecycle.viewmodel.compose.viewModel()
 ) {
