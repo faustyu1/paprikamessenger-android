@@ -31,6 +31,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
@@ -367,6 +368,27 @@ fun RecordingBar(
             contentAlignment = Alignment.Center,
         ) {
             Icon(Icons.AutoMirrored.Filled.Send, null, tint = Color.White, modifier = Modifier.size(22.dp))
+        }
+    }
+}
+
+@Composable
+private fun RecordingWaveform() {
+    val bars = 20
+    val heights = remember { List(bars) { (4..20).random().dp } }
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(2.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        heights.forEach { h ->
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .height(h)
+                    .clip(RoundedCornerShape(2.dp))
+                    .background(MaterialTheme.colorScheme.error.copy(alpha = 0.7f))
+            )
         }
     }
 }
