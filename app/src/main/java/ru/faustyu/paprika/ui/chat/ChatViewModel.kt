@@ -136,7 +136,10 @@ class ChatViewModel(application: android.app.Application) : androidx.lifecycle.A
         viewModelScope.launch(Dispatchers.IO) {
             try {
                 val profile = NetworkModule.api.getMyProfile().body()
-                if (profile != null) myUserId = profile.id
+                if (profile != null) {
+                    myUserId = profile.id
+                    ru.faustyu.paprika.data.PrefsManager(getApplication()).myUserId = profile.id
+                }
 
                 if (chatId != "paprika_system") {
                     val chatRes = NetworkModule.api.getChat(chatId)
@@ -509,7 +512,12 @@ class ChatViewModel(application: android.app.Application) : androidx.lifecycle.A
     fun setReply(message: Message) { replyToMessage.value = message }
     fun clearReply() { replyToMessage.value = null }
 
+    private var lastTypingTime = 0L
+
     fun sendTyping(chatId: String) {
+        val now = System.currentTimeMillis()
+        if (now - lastTypingTime < 3000) return
+        lastTypingTime = now
         val cid = if (chatId == "paprika_system") 1L else chatId.toLongOrNull() ?: 0L
         AppWebSocketManager.send(mapOf("event" to "user:typing", "chat_id" to cid))
     }

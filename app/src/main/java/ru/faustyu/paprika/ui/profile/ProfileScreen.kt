@@ -8,11 +8,9 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.*
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -60,7 +58,7 @@ class ProfileViewModel : ViewModel() {
                         bio = user.bio ?: ""
                         
                         // Construct full URL if needed
-                        if (user.avatar != null) {
+                        if (!user.avatar.isNullOrBlank()) {
                             val baseUrl = ru.faustyu.paprika.data.network.NetworkModule.baseUrl.removeSuffix("/")
                              // If it starts with http, use it, else prepend base
                              if (user.avatar.startsWith("http")) {
@@ -68,6 +66,8 @@ class ProfileViewModel : ViewModel() {
                              } else {
                                  avatarUrl = "$baseUrl${user.avatar}"
                              }
+                        } else {
+                            avatarUrl = null
                         }
                     }
                 }
@@ -166,7 +166,7 @@ fun ProfileScreen(
 ) {
     val context = LocalContext.current
     
-    // Local state for editing
+    // Local state for editing - synced with ViewModel
     var tempUsername by remember(viewModel.username) { mutableStateOf(viewModel.username) }
     var tempFirstName by remember(viewModel.firstName) { mutableStateOf(viewModel.firstName) }
     var tempLastName by remember(viewModel.lastName) { mutableStateOf(viewModel.lastName) }
@@ -175,19 +175,27 @@ fun ProfileScreen(
     val launcher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
     ) { uri: Uri? ->
-        uri?.let { 
-             // Upload immediately for better UX
-             viewModel.uploadAvatar(context, it)
-        }
+        uri?.let { viewModel.uploadAvatar(context, it) }
     }
 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(stringResource(R.string.profile_title)) },
+                title = { Text("Account") },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.Filled.ArrowBack, contentDescription = stringResource(R.string.profile_back))
+                        Icon(Icons.Default.ArrowBack, contentDescription = "Back")
+                    }
+                },
+                actions = {
+                    if (!viewModel.isLoading) {
+                        TextButton(onClick = { 
+                            viewModel.saveProfile(tempUsername, tempFirstName, tempLastName, tempBio, null) 
+                        }) {
+                            Text("Done", fontWeight = androidx.compose.ui.text.font.FontWeight.Bold)
+                        }
+                    } else {
+                        CircularProgressIndicator(modifier = Modifier.size(24.dp).padding(end = 16.dp), strokeWidth = 2.dp)
                     }
                 }
             )
@@ -197,131 +205,211 @@ fun ProfileScreen(
             modifier = Modifier
                 .padding(padding)
                 .fillMaxSize()
-                .padding(16.dp)
-                .verticalScroll(rememberScrollState()),
-            horizontalAlignment = Alignment.CenterHorizontally
+                .verticalScroll(rememberScrollState())
+                .padding(bottom = 32.dp)
         ) {
+            // Avatar Section
             Box(
                 modifier = Modifier
-                    .size(120.dp)
-                    .clickable { launcher.launch("image/*") },
+                    .fillMaxWidth()
+                    .padding(vertical = 24.dp),
                 contentAlignment = Alignment.Center
             ) {
-                if (viewModel.avatarUrl != null) {
-                    AsyncImage(
-                        model = viewModel.avatarUrl,
-                        contentDescription = "Avatar",
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .clip(CircleShape),
-                        contentScale = ContentScale.Crop
-                    )
-                } else {
+                Box(
+                    modifier = Modifier
+                        .size(100.dp)
+                        .clickable { launcher.launch("image/*") },
+                    contentAlignment = Alignment.Center
+                ) {
+                    if (!viewModel.avatarUrl.isNullOrBlank()) {
+                        AsyncImage(
+                            model = viewModel.avatarUrl,
+                            contentDescription = "Avatar",
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .clip(CircleShape),
+                            contentScale = ContentScale.Crop
+                        )
+                    } else {
+                        Surface(
+                            shape = CircleShape,
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.fillMaxSize()
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                val initial = (tempFirstName.takeIf { it.isNotBlank() } ?: tempUsername).take(1).uppercase()
+                                if (initial.isNotEmpty()) {
+                                    Text(
+                                        text = initial,
+                                        style = MaterialTheme.typography.displayMedium,
+                                        color = MaterialTheme.colorScheme.onPrimary
+                                    )
+                                } else {
+                                    Icon(
+                                        imageVector = Icons.Default.Person,
+                                        contentDescription = null,
+                                        modifier = Modifier.fillMaxSize(0.5f),
+                                        tint = MaterialTheme.colorScheme.onPrimary
+                                    )
+                                }
+                            }
+                        }
+                    }
                     Box(
                         modifier = Modifier
-                            .fillMaxSize()
-                            .background(MaterialTheme.colorScheme.secondaryContainer, CircleShape),
-                        contentAlignment = Alignment.Center
+                            .align(Alignment.BottomEnd)
+                            .size(28.dp)
+                            .background(MaterialTheme.colorScheme.primary, CircleShape)
+                            .padding(6.dp)
                     ) {
-                        Text(
-                            text = tempUsername.take(1).uppercase(),
-                            style = MaterialTheme.typography.headlineLarge,
-                            color = MaterialTheme.colorScheme.onSecondaryContainer
+                        Icon(
+                            Icons.Default.Edit,
+                            contentDescription = "Edit Avatar",
+                            modifier = Modifier.fillMaxSize(),
+                            tint = MaterialTheme.colorScheme.onPrimary
                         )
                     }
                 }
-                
-                // Edit overlay
-                Box(
-                    modifier = Modifier
-                        .align(Alignment.BottomEnd)
-                        .background(MaterialTheme.colorScheme.primary, CircleShape)
-                        .padding(8.dp)
-                ) {
-                    Icon(
-                        Icons.Filled.Edit,
-                        contentDescription = stringResource(R.string.profile_edit_avatar),
-                        modifier = Modifier.size(16.dp),
-                        tint = MaterialTheme.colorScheme.onPrimary
+            }
+
+            // Section: Your Info
+            ProfileSectionHeader(text = "Your Info")
+            Card(
+                modifier = Modifier.padding(horizontal = 16.dp),
+                shape = RoundedCornerShape(20.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+            ) {
+                Column {
+                    AccountInfoRow(
+                        icon = Icons.Default.AlternateEmail,
+                        title = "@$tempUsername",
+                        subtitle = "Username"
+                    )
+                    HorizontalDivider(
+                        modifier = Modifier.padding(start = 56.dp),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.1f)
+                    )
+                    AccountInfoRow(
+                        icon = Icons.Default.Cake,
+                        title = "Jan 10 (TODO)",
+                        subtitle = "Birthday"
+                    )
+                }
+            }
+            Text(
+                text = "Choose who can see your birthday in Settings.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp)
+            )
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Section: Your name
+            ProfileSectionHeader(text = "Your name")
+            Card(
+                modifier = Modifier.padding(horizontal = 16.dp),
+                shape = RoundedCornerShape(20.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    BasicEditField(
+                        value = tempFirstName,
+                        onValueChange = { tempFirstName = it },
+                        placeholder = "First Name"
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    HorizontalDivider(color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.1f))
+                    Spacer(modifier = Modifier.height(12.dp))
+                    BasicEditField(
+                        value = tempLastName,
+                        onValueChange = { tempLastName = it },
+                        placeholder = "Last Name (Optional)"
                     )
                 }
             }
 
-            Spacer(modifier = Modifier.height(24.dp))
-
-            OutlinedTextField(
-                value = tempUsername,
-                onValueChange = { tempUsername = it },
-                label = { Text(stringResource(R.string.profile_username)) },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth()
-            )
-
             Spacer(modifier = Modifier.height(16.dp))
 
-            OutlinedTextField(
-                value = tempFirstName,
-                onValueChange = { tempFirstName = it },
-                label = { Text(stringResource(R.string.profile_first_name)) },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth()
-            )
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            OutlinedTextField(
-                value = tempLastName,
-                onValueChange = { tempLastName = it },
-                label = { Text(stringResource(R.string.profile_last_name)) },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth()
-            )
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            OutlinedTextField(
-                value = tempBio,
-                onValueChange = { tempBio = it },
-                label = { Text(stringResource(R.string.profile_bio)) },
-                minLines = 3,
-                maxLines = 5,
-                modifier = Modifier.fillMaxWidth()
-            )
-
-            Spacer(modifier = Modifier.height(32.dp))
-
-            Button(
-                onClick = { 
-                    viewModel.saveProfile(tempUsername, tempFirstName, tempLastName, tempBio, null) 
-                },
-                enabled = !viewModel.isLoading,
-                modifier = Modifier.fillMaxWidth()
+            // Section: Your bio
+            ProfileSectionHeader(text = "Your bio")
+            Card(
+                modifier = Modifier.padding(horizontal = 16.dp),
+                shape = RoundedCornerShape(20.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
             ) {
-                if (viewModel.isLoading) {
-                    CircularProgressIndicator(modifier = Modifier.size(24.dp), color = MaterialTheme.colorScheme.onPrimary)
-                } else {
-                    Text(stringResource(R.string.profile_save))
+                Column(modifier = Modifier.padding(16.dp)) {
+                    BasicEditField(
+                        value = tempBio,
+                        onValueChange = { tempBio = it },
+                        placeholder = "A few lines about yourself...",
+                        singleLine = false
+                    )
                 }
             }
-            
+            Text(
+                text = "You can add a few lines about yourself. Choose who can see your bio in Settings.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp)
+            )
+
             Spacer(modifier = Modifier.height(24.dp))
-            
-            OutlinedButton(
-                onClick = onSettingsClick,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Text("Настройки")
-            }
 
-            Spacer(modifier = Modifier.height(8.dp))
-
-            OutlinedButton(
+            // Other buttons
+            TextButton(
                 onClick = onLogout,
-                modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error)
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
             ) {
-                Text(stringResource(R.string.profile_logout))
+                Text("Log Out")
             }
         }
     }
+}
+
+@Composable
+fun ProfileSectionHeader(text: String) {
+    Text(
+        text = text,
+        style = MaterialTheme.typography.labelLarge,
+        color = MaterialTheme.colorScheme.primary,
+        modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp),
+        fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold
+    )
+}
+
+@Composable
+fun AccountInfoRow(icon: androidx.compose.ui.graphics.vector.ImageVector, title: String, subtitle: String) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(16.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(icon, contentDescription = null, modifier = Modifier.size(24.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+        Spacer(modifier = Modifier.width(16.dp))
+        Column {
+            Text(text = title, style = MaterialTheme.typography.bodyLarge)
+            Text(text = subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+    }
+}
+
+@Composable
+fun BasicEditField(value: String, onValueChange: (String) -> Unit, placeholder: String, singleLine: Boolean = true) {
+    androidx.compose.foundation.text.BasicTextField(
+        value = value,
+        onValueChange = onValueChange,
+        modifier = Modifier.fillMaxWidth(),
+        textStyle = MaterialTheme.typography.bodyLarge.copy(color = MaterialTheme.colorScheme.onSurface),
+        singleLine = singleLine,
+        cursorBrush = androidx.compose.ui.graphics.SolidColor(MaterialTheme.colorScheme.primary),
+        decorationBox = { innerTextField ->
+            if (value.isEmpty()) {
+                Text(text = placeholder, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f))
+            }
+            innerTextField()
+        }
+    )
 }

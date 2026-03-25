@@ -23,7 +23,7 @@ fun SettingsScreen(
     val context = LocalContext.current
     val prefs = remember { PrefsManager(context) }
 
-    var darkTheme by remember { mutableStateOf(prefs.darkTheme) }
+    var themeMode by remember { mutableStateOf(prefs.themeMode) }
     var fontSize by remember { mutableStateOf(prefs.fontSize) }
     var appLockEnabled by remember { mutableStateOf(prefs.appLockEnabled) }
     var showPinDialog by remember { mutableStateOf(false) }
@@ -31,40 +31,32 @@ fun SettingsScreen(
     var notificationSound by remember { mutableStateOf(prefs.notificationSound) }
 
     if (showPinDialog) {
-        AlertDialog(
-            onDismissRequest = { showPinDialog = false; pinInput = "" },
-            title = { Text(if (appLockEnabled) "Установить PIN" else "Отключить PIN") },
-            text = {
-                Column {
-                    Text("Введите 4-значный PIN:")
-                    Spacer(Modifier.height(8.dp))
-                    OutlinedTextField(
-                        value = pinInput,
-                        onValueChange = { if (it.length <= 4) pinInput = it },
-                        label = { Text("PIN") },
-                        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
-                            keyboardType = androidx.compose.ui.text.input.KeyboardType.NumberPassword
-                        ),
-                        visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation()
+        androidx.compose.ui.window.Dialog(onDismissRequest = { showPinDialog = false; pinInput = ""; appLockEnabled = !appLockEnabled }) {
+            Surface(
+                modifier = Modifier.fillMaxWidth().wrapContentHeight(),
+                shape = MaterialTheme.shapes.extraLarge,
+                color = MaterialTheme.colorScheme.surface
+            ) {
+                Box(modifier = Modifier.padding(24.dp)) {
+                    ru.faustyu.paprika.ui.components.PinPad(
+                        currentPin = pinInput,
+                        onPinChange = { it ->
+                            pinInput = it
+                            if (it.length == 4) {
+                                val md = java.security.MessageDigest.getInstance("SHA-256")
+                                prefs.pinHash = md.digest(it.toByteArray()).joinToString("") { "%02x".format(it) }
+                                prefs.appLockEnabled = appLockEnabled
+                                showPinDialog = false
+                                pinInput = ""
+                            }
+                        },
+                        showBiometric = false,
+                        title = "Установить PIN",
+                        isError = false
                     )
                 }
-            },
-            confirmButton = {
-                TextButton(onClick = {
-                    if (pinInput.length == 4) {
-                        prefs.pinHash = pinInput.hashCode().toString()
-                        prefs.appLockEnabled = appLockEnabled
-                        showPinDialog = false
-                        pinInput = ""
-                    }
-                }) { Text("Сохранить") }
-            },
-            dismissButton = {
-                TextButton(onClick = { showPinDialog = false; pinInput = ""; appLockEnabled = !appLockEnabled }) {
-                    Text("Отмена")
-                }
             }
-        )
+        }
     }
 
     Scaffold(
@@ -81,20 +73,22 @@ fun SettingsScreen(
     ) { padding ->
         LazyColumn(modifier = Modifier.padding(padding).fillMaxSize()) {
             item {
-                ListItem(
-                    headlineContent = { Text("Тёмная тема") },
-                    supportingContent = { Text(if (darkTheme) "Включена" else "Выключена") },
-                    leadingContent = { Icon(Icons.Filled.DarkMode, contentDescription = null) },
-                    trailingContent = {
-                        Switch(
-                            checked = darkTheme,
-                            onCheckedChange = {
-                                darkTheme = it
-                                prefs.darkTheme = it
-                            }
-                        )
-                    }
-                )
+                Text("Тема оформления", style = MaterialTheme.typography.labelMedium,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                    color = MaterialTheme.colorScheme.primary)
+                val themes = listOf("Как в системе" to 0, "Светлая" to 1, "Тёмная" to 2)
+                themes.forEach { (label, mode) ->
+                    ListItem(
+                        headlineContent = { Text(label) },
+                        trailingContent = {
+                            RadioButton(
+                                selected = themeMode == mode,
+                                onClick = { themeMode = mode; prefs.themeMode = mode }
+                            )
+                        },
+                        modifier = Modifier.clickable { themeMode = mode; prefs.themeMode = mode }
+                    )
+                }
                 HorizontalDivider()
             }
             item {

@@ -141,13 +141,6 @@ fun ChatListScreen(
         }
     ) { padding ->
         Column(modifier = Modifier.padding(padding)) {
-             // Optional: Button to create group explicitly in the list header
-             Button(
-                 onClick = onCreateGroupClick,
-                 modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)
-             ) {
-                 Text(stringResource(R.string.chatlist_create_group))
-             }
             // Stories Section
             ru.faustyu.paprika.ui.stories.StoriesBar(onStoryClick = {
                 // Navigate to view story

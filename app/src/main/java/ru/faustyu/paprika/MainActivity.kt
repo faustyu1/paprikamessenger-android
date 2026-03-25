@@ -89,8 +89,8 @@ class MainActivity : androidx.appcompat.app.AppCompatActivity() {
         val startDestination = if (prefs.token != null) {
             NetworkModule.authToken = prefs.token
             AppWebSocketManager.connect(prefs.token!!, NetworkModule.getCurrentUrl())
-            AppWebSocketManager.onNewMessage = {
-                if (prefs.notificationSound) {
+            AppWebSocketManager.onNewMessage = { senderId ->
+                if (prefs.notificationSound && senderId != prefs.myUserId) {
                     AppNotificationHelper.playMessageSound(this, true)
                 }
             }
@@ -100,8 +100,15 @@ class MainActivity : androidx.appcompat.app.AppCompatActivity() {
         }
 
         setContent {
-            val darkTheme = remember { mutableStateOf(prefs.darkTheme) }
-            PaprikaTheme(darkTheme = darkTheme.value) {
+            val themeMode by PrefsManager.themeModeFlow.collectAsState()
+            val fontScale by PrefsManager.fontSizeFlow.collectAsState()
+            val isSystemDark = androidx.compose.foundation.isSystemInDarkTheme()
+            val darkTheme = when (themeMode) {
+                1 -> false
+                2 -> true
+                else -> isSystemDark
+            }
+            PaprikaTheme(darkTheme = darkTheme, fontScale = fontScale) {
                 Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
                     val callViewModel: CallViewModel = viewModel()
                     val callState by callViewModel.callState.collectAsState()
@@ -111,64 +118,65 @@ class MainActivity : androidx.appcompat.app.AppCompatActivity() {
                     var isUnlocked by remember { mutableStateOf(!prefs.appLockEnabled) }
                     var pinInput by remember { mutableStateOf("") }
                     var pinError by remember { mutableStateOf(false) }
+                    val launchBiometric = {
+                        val biometricManager = BiometricManager.from(this@MainActivity)
+                        val canUseBiometric = biometricManager.canAuthenticate(
+                            BiometricManager.Authenticators.BIOMETRIC_WEAK
+                        ) == BiometricManager.BIOMETRIC_SUCCESS
+                        if (canUseBiometric) {
+                            val executor = ContextCompat.getMainExecutor(this@MainActivity)
+                            val prompt = BiometricPrompt(
+                                this@MainActivity, executor,
+                                object : BiometricPrompt.AuthenticationCallback() {
+                                    override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
+                                        isUnlocked = true
+                                    }
+                                }
+                            )
+                            prompt.authenticate(
+                                BiometricPrompt.PromptInfo.Builder()
+                                    .setTitle("Разблокировать Paprika")
+                                    .setSubtitle("Используйте биометрию для входа")
+                                    .setNegativeButtonText("PIN")
+                                    .build()
+                            )
+                        }
+                    }
+
                     LaunchedEffect(Unit) {
                         if (prefs.appLockEnabled) {
-                            val biometricManager = BiometricManager.from(this@MainActivity)
-                            val canUseBiometric = biometricManager.canAuthenticate(
-                                BiometricManager.Authenticators.BIOMETRIC_WEAK
-                            ) == BiometricManager.BIOMETRIC_SUCCESS
-                            if (canUseBiometric) {
-                                val executor = ContextCompat.getMainExecutor(this@MainActivity)
-                                val prompt = BiometricPrompt(
-                                    this@MainActivity, executor,
-                                    object : BiometricPrompt.AuthenticationCallback() {
-                                        override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
-                                            isUnlocked = true
-                                        }
-                                    }
-                                )
-                                prompt.authenticate(
-                                    BiometricPrompt.PromptInfo.Builder()
-                                        .setTitle("Разблокировать Paprika")
-                                        .setSubtitle("Используйте биометрию для входа")
-                                        .setNegativeButtonText("PIN")
-                                        .build()
-                                )
-                            }
+                            launchBiometric()
                         }
                     }
 
                     if (!isUnlocked) {
-                        AlertDialog(
-                            onDismissRequest = {},
-                            title = { Text("Введите PIN") },
-                            text = {
-                                OutlinedTextField(
-                                    value = pinInput,
-                                    onValueChange = { pinInput = it.take(6); pinError = false },
-                                    visualTransformation = PasswordVisualTransformation(),
-                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
+                        Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+                            androidx.compose.foundation.layout.Box(contentAlignment = androidx.compose.ui.Alignment.Center) {
+                                ru.faustyu.paprika.ui.components.PinPad(
+                                    currentPin = pinInput,
+                                    onPinChange = { it ->
+                                        pinInput = it
+                                        pinError = false
+                                        if (it.length == 4) {
+                                            val hash = MessageDigest.getInstance("SHA-256")
+                                                .digest(it.toByteArray())
+                                                .joinToString("") { "%02x".format(it) }
+                                            if (hash == prefs.pinHash) {
+                                                isUnlocked = true
+                                            } else {
+                                                pinError = true
+                                                pinInput = ""
+                                            }
+                                        }
+                                    },
+                                    showBiometric = BiometricManager.from(this@MainActivity)
+                                        .canAuthenticate(BiometricManager.Authenticators.BIOMETRIC_WEAK) == BiometricManager.BIOMETRIC_SUCCESS,
+                                    onBiometricClick = { launchBiometric() },
                                     isError = pinError,
-                                    supportingText = if (pinError) { { Text("Неверный PIN") } } else null,
-                                    label = { Text("PIN-код") },
-                                    modifier = Modifier.fillMaxWidth().padding(top = 8.dp)
+                                    modifier = Modifier.padding(16.dp)
                                 )
-                            },
-                            confirmButton = {
-                                TextButton(onClick = {
-                                    val hash = MessageDigest.getInstance("SHA-256")
-                                        .digest(pinInput.toByteArray())
-                                        .joinToString("") { "%02x".format(it) }
-                                    if (hash == prefs.pinHash) {
-                                        isUnlocked = true
-                                    } else {
-                                        pinError = true
-                                        pinInput = ""
-                                    }
-                                }) { Text("Войти") }
-                            },
-                            dismissButton = {}
-                        )
+                            }
+                        }
                         return@Surface
                     }
 
@@ -229,8 +237,8 @@ class MainActivity : androidx.appcompat.app.AppCompatActivity() {
                                     prefs.token = token
                                     NetworkModule.authToken = token
                                     AppWebSocketManager.connect(token, NetworkModule.getCurrentUrl())
-                                    AppWebSocketManager.onNewMessage = {
-                                        if (prefs.notificationSound) {
+                                    AppWebSocketManager.onNewMessage = { senderId ->
+                                        if (prefs.notificationSound && senderId != prefs.myUserId) {
                                             AppNotificationHelper.playMessageSound(this@MainActivity, true)
                                         }
                                     }
@@ -294,14 +302,24 @@ class MainActivity : androidx.appcompat.app.AppCompatActivity() {
                         composable("search") {
                             ru.faustyu.paprika.ui.search.SearchScreen(
                                 onBack = { navController.popBackStack() },
-                                onChatJoined = { chatId -> navController.navigate("chat/$chatId") }
+                                onChatJoined = { chatId -> navController.navigate("chat/$chatId") },
+                                onNewGroupClick = { navController.navigate("create_group?isChannel=false") },
+                                onNewChannelClick = { navController.navigate("create_group?isChannel=true") }
                             )
                         }
 
-                        composable("create_group") {
+                        composable(
+                            "create_group?isChannel={isChannel}",
+                            arguments = listOf(androidx.navigation.navArgument("isChannel") { 
+                                type = androidx.navigation.NavType.BoolType
+                                defaultValue = false 
+                            })
+                        ) { backStackEntry ->
+                            val isChannel = backStackEntry.arguments?.getBoolean("isChannel") ?: false
                             ru.faustyu.paprika.ui.groups.CreateGroupScreen(
                                 onBack = { navController.popBackStack() },
-                                onSuccess = { navController.popBackStack() }
+                                onSuccess = { navController.popBackStack() },
+                                isChannel = isChannel
                             )
                         }
 

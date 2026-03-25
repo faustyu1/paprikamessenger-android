@@ -374,17 +374,18 @@ fun ChatScreen(
                                     contentScale = ContentScale.Crop
                                 )
                             } else {
-                                Box(
-                                    modifier = Modifier
-                                        .size(40.dp)
-                                        .background(MaterialTheme.colorScheme.secondaryContainer, CircleShape),
-                                    contentAlignment = Alignment.Center
+                                Surface(
+                                    shape = CircleShape,
+                                    color = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(40.dp)
                                 ) {
-                                    Text(
-                                        title.take(1).uppercase(),
-                                        style = MaterialTheme.typography.titleMedium,
-                                        color = MaterialTheme.colorScheme.onSecondaryContainer
-                                    )
+                                    Box(contentAlignment = Alignment.Center) {
+                                        Text(
+                                            title.take(1).uppercase(),
+                                            style = MaterialTheme.typography.titleMedium,
+                                            color = MaterialTheme.colorScheme.onPrimary
+                                        )
+                                    }
                                 }
                             }
                             Spacer(modifier = Modifier.width(12.dp))
@@ -519,7 +520,10 @@ fun ChatScreen(
                     inputText = inputText,
                     onInputChange = { inputText = it },
                     onSend = {
-                        viewModel.sendMessage(chatId, inputText)
+                        val trimmed = inputText.trim()
+                        if (trimmed.isNotBlank()) {
+                            viewModel.sendMessage(chatId, trimmed)
+                        }
                         inputText = ""
                     },
                     onPickImage = {
@@ -1115,7 +1119,7 @@ private fun LinkPreviewCard(url: String) {
 
 @Composable
 private fun StatusLine(message: Message) {
-    Column(horizontalAlignment = Alignment.End) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
         val timeString = remember(message.timestamp) {
             try {
                 val instant = java.time.Instant.ofEpochSecond(message.timestamp)
@@ -1130,6 +1134,7 @@ private fun StatusLine(message: Message) {
             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
         )
         if (message.isMe) {
+            Spacer(modifier = Modifier.width(4.dp))
             if (message.status == "uploading") {
                 CircularProgressIndicator(modifier = Modifier.size(12.dp), strokeWidth = 2.dp)
             } else {

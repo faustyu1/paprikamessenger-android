@@ -412,5 +412,6 @@ data class ChatDto(
     val unread_count: Long = 0,
     val mute_until: Long = 0,
     val is_archived: Boolean = false,
-    val is_pinned: Boolean = false
+    val is_pinned: Boolean = false,
+    val invite_link: String? = null
 )

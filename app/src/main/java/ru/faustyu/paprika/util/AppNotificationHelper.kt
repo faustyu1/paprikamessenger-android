@@ -36,11 +36,10 @@ object AppNotificationHelper {
     }
 
     fun playMessageSound(context: Context, soundEnabled: Boolean) {
+        // We only vibrate lightly inside the app to avoid loud cringe system ringtones
         if (soundEnabled) {
-            val uri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
-            RingtoneManager.getRingtone(context, uri)?.play()
+            vibrate(context)
         }
-        vibrate(context)
     }
 
     private fun vibrate(context: Context) {

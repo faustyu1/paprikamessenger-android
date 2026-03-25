@@ -8,8 +8,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -18,6 +16,11 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.automirrored.filled.*
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.foundation.shape.RoundedCornerShape
 import ru.faustyu.paprika.R
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.Job
@@ -125,35 +128,22 @@ class SearchViewModel(application: android.app.Application) : androidx.lifecycle
 fun SearchScreen(
     onBack: () -> Unit,
     onChatJoined: (String) -> Unit,
+    onNewGroupClick: () -> Unit,
+    onNewChannelClick: () -> Unit,
     viewModel: SearchViewModel = androidx.lifecycle.viewmodel.compose.viewModel()
 ) {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { 
-                    TextField(
-                        value = viewModel.query,
-                        onValueChange = viewModel::onQueryChange,
-                        placeholder = { Text(stringResource(R.string.search_placeholder)) },
-                        colors = TextFieldDefaults.colors(
-                            focusedContainerColor = MaterialTheme.colorScheme.surface,
-                            unfocusedContainerColor = MaterialTheme.colorScheme.surface,
-                            focusedIndicatorColor = androidx.compose.ui.graphics.Color.Transparent,
-                            unfocusedIndicatorColor = androidx.compose.ui.graphics.Color.Transparent
-                        ),
-                        modifier = Modifier.fillMaxWidth(),
-                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-                        keyboardActions = KeyboardActions(
-                            onSearch = {
-                                viewModel.onQueryChange(viewModel.query) // Force search or just hide keyboard
-                                // default behavior logic
-                            }
-                        )
-                    ) 
-                },
+                title = { Text("New Message") },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.search_back))
+                    }
+                },
+                actions = {
+                    IconButton(onClick = { /* TODO: Sort menu or similar */ }) {
+                        Icon(Icons.Default.Sort, contentDescription = "Sort")
                     }
                 }
             )
@@ -165,6 +155,78 @@ fun SearchScreen(
             }
             
             LazyColumn {
+                // Top Search Bar (Inline now)
+                item {
+                    TextField(
+                        value = viewModel.query,
+                        onValueChange = viewModel::onQueryChange,
+                        placeholder = { Text(stringResource(R.string.search_placeholder)) },
+                        leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+                        colors = TextFieldDefaults.colors(
+                            focusedContainerColor = MaterialTheme.colorScheme.surface,
+                            unfocusedContainerColor = MaterialTheme.colorScheme.surface,
+                            focusedIndicatorColor = androidx.compose.ui.graphics.Color.Transparent,
+                            unfocusedIndicatorColor = androidx.compose.ui.graphics.Color.Transparent
+                        ),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(8.dp),
+                        shape = CircleShape,
+                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search)
+                    )
+                }
+
+                // New Group and Channel Items
+                item {
+                    ListItem(
+                        headlineContent = { Text("New Group", style = MaterialTheme.typography.titleMedium) },
+                        leadingContent = {
+                            Surface(
+                                shape = CircleShape,
+                                color = androidx.compose.ui.graphics.Color(0xFF3390EC),
+                                modifier = Modifier.size(40.dp)
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(Icons.Default.People, contentDescription = null, tint = androidx.compose.ui.graphics.Color.White)
+                                }
+                            }
+                        },
+                        modifier = Modifier.clickable { onNewGroupClick() }
+                    )
+                }
+                item {
+                    ListItem(
+                        headlineContent = { Text("New Channel", style = MaterialTheme.typography.titleMedium) },
+                        leadingContent = {
+                            Surface(
+                                shape = CircleShape,
+                                color = androidx.compose.ui.graphics.Color(0xFF31D84D),
+                                modifier = Modifier.size(40.dp)
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(Icons.Default.Notifications, contentDescription = null, tint = androidx.compose.ui.graphics.Color.White)
+                                }
+                            }
+                        },
+                        modifier = Modifier.clickable { onNewChannelClick() }
+                    )
+                }
+
+                if (viewModel.query.isEmpty()) {
+                    item {
+                        Text(
+                            text = "Sorted by last seen time",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.padding(16.dp)
+                        )
+                    }
+                }
+                
+                if (viewModel.query.isEmpty() && viewModel.history.isNotEmpty()) {
+                    // Search history... (already in the file, we can keep it below the "New Group/Channel" or just remove if we want to follow photo closely)
+                    // Currently I'll keep it as "recent" below the header.
+                }
                 if (viewModel.query.isEmpty() && viewModel.history.isNotEmpty()) {
                     item {
                         Row(

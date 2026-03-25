@@ -4,17 +4,14 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.foundation.shape.*
+import androidx.compose.material.icons.*
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.filled.Person
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
@@ -112,7 +109,7 @@ fun UserProfileScreen(
     LaunchedEffect(userId) {
         viewModel.loadUser(userId)
     }
-    
+
     val user = viewModel.user
 
     Scaffold(
@@ -121,7 +118,12 @@ fun UserProfileScreen(
                 title = { },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.Default.ArrowBack, contentDescription = "Back")
+                    }
+                },
+                actions = {
+                    IconButton(onClick = { /* TODO */ }) {
+                        Icon(Icons.Default.MoreVert, contentDescription = "More")
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -138,61 +140,52 @@ fun UserProfileScreen(
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
+                        .padding(padding)
                         .verticalScroll(rememberScrollState()),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(260.dp)
-                            .background(
-                                MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
-                            ),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        val avatarUrl = user.avatar?.let { av ->
-                            if (av.startsWith("http")) av else ru.faustyu.paprika.data.network.NetworkModule.baseUrl.removeSuffix("/") + av
-                        }
-                        Box {
-                            if (avatarUrl != null) {
-                                AsyncImage(
-                                    model = avatarUrl,
-                                    contentDescription = "Avatar",
-                                    modifier = Modifier
-                                        .size(160.dp)
-                                        .clip(CircleShape)
-                                        .background(MaterialTheme.colorScheme.surface),
-                                    contentScale = ContentScale.Crop
-                                )
-                            } else {
-                                Surface(
-                                    shape = CircleShape,
-                                    color = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.size(160.dp),
-                                    shadowElevation = 8.dp
-                                ) {
-                                    Box(contentAlignment = Alignment.Center) {
-                                        val initial = (user.first_name?.takeIf { it.isNotBlank() } ?: user.username).take(1).uppercase()
+                    val avatarUrl = user.avatar?.takeIf { it.isNotBlank() }?.let { av ->
+                        if (av.startsWith("http")) av else ru.faustyu.paprika.data.network.NetworkModule.baseUrl.removeSuffix("/") + av
+                    }
+                    Box(modifier = Modifier.size(120.dp), contentAlignment = Alignment.Center) {
+                        if (avatarUrl != null) {
+                            AsyncImage(
+                                model = avatarUrl,
+                                contentDescription = "Avatar",
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .clip(CircleShape)
+                                    .background(MaterialTheme.colorScheme.surfaceVariant),
+                                contentScale = ContentScale.Crop
+                            )
+                        } else {
+                            Surface(
+                                shape = CircleShape,
+                                color = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.fillMaxSize()
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    val initial = (user.first_name?.takeIf { it.isNotBlank() } ?: user.username).take(1).uppercase()
+                                    if (initial.isNotEmpty()) {
                                         Text(
                                             text = initial,
-                                            style = MaterialTheme.typography.displayLarge,
+                                            style = MaterialTheme.typography.displayMedium,
                                             color = MaterialTheme.colorScheme.onPrimary
+                                        )
+                                    } else {
+                                        Icon(
+                                            imageVector = Icons.Default.Person,
+                                            contentDescription = null,
+                                            modifier = Modifier.fillMaxSize(0.5f),
+                                            tint = MaterialTheme.colorScheme.onPrimary
                                         )
                                     }
                                 }
                             }
-                            if (user.is_online) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(20.dp)
-                                        .background(androidx.compose.ui.graphics.Color(0xFF4CAF50), CircleShape)
-                                        .align(Alignment.BottomEnd)
-                                )
-                            }
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(24.dp))
+                    Spacer(modifier = Modifier.height(16.dp))
 
                     val displayName = if (!user.first_name.isNullOrBlank()) {
                         "${user.first_name} ${user.last_name ?: ""}".trim()
@@ -202,83 +195,160 @@ fun UserProfileScreen(
 
                     Text(
                         text = displayName,
-                        style = MaterialTheme.typography.headlineLarge,
+                        style = MaterialTheme.typography.titleLarge,
                         fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
-                    )
-
-                    Text(
-                        text = "@${user.username}",
-                        style = MaterialTheme.typography.titleMedium,
-                        color = MaterialTheme.colorScheme.primary
                     )
 
                     Spacer(modifier = Modifier.height(4.dp))
 
+                    val lastSeenText = if (user.is_online) "online" else if (user.last_seen > 0) {
+                        val diff = System.currentTimeMillis() / 1000 - user.last_seen
+                        when {
+                            diff < 60 -> "last seen just now"
+                            diff < 3600 -> "last seen ${diff / 60} mins ago"
+                            diff < 86400 -> "last seen ${diff / 3600} hours ago"
+                            else -> "last seen recently"
+                        }
+                    } else "last seen recently"
+
                     Text(
-                        text = if (user.is_online) "в сети" else if (user.last_seen > 0) {
-                            val diff = System.currentTimeMillis() / 1000 - user.last_seen
-                            when {
-                                diff < 60 -> "был(а) только что"
-                                diff < 3600 -> "был(а) ${diff / 60} мин. назад"
-                                diff < 86400 -> "был(а) ${diff / 3600} ч. назад"
-                                else -> "был(а) давно"
-                            }
-                        } else "",
+                        text = lastSeenText,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+
+                    Text(
+                        text = "ID: ${user.id}",
                         style = MaterialTheme.typography.bodySmall,
-                        color = if (user.is_online) androidx.compose.ui.graphics.Color(0xFF4CAF50)
-                                else MaterialTheme.colorScheme.onSurfaceVariant
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
                     )
 
                     Spacer(modifier = Modifier.height(24.dp))
 
-                    Button(
-                        onClick = {
-                            viewModel.startChat(user.id) { cid -> onChatClick(cid.toString()) }
-                        },
-                        modifier = Modifier.padding(horizontal = 32.dp).fillMaxWidth()
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        Icon(Icons.Default.Person, contentDescription = null, modifier = Modifier.size(18.dp))
-                        Spacer(Modifier.width(8.dp))
-                        Text("Написать сообщение")
+                        ActionCard(
+                            icon = Icons.Default.ChatBubbleOutline,
+                            label = "Message",
+                            modifier = Modifier.weight(1f),
+                            onClick = {
+                                viewModel.startChat(user.id) { cid -> onChatClick(cid.toString()) }
+                            }
+                        )
+                        ActionCard(
+                            icon = Icons.Default.NotificationsOff,
+                            label = "Mute",
+                            modifier = Modifier.weight(1f),
+                            onClick = { /* TODO */ }
+                        )
+                        ActionCard(
+                            icon = Icons.Default.Call,
+                            label = "Call",
+                            modifier = Modifier.weight(1f),
+                            onClick = { /* TODO */ }
+                        )
+                        ActionCard(
+                            icon = Icons.Default.Videocam,
+                            label = "Video",
+                            modifier = Modifier.weight(1f),
+                            onClick = { /* TODO */ }
+                        )
                     }
 
-                    Spacer(modifier = Modifier.height(24.dp))
+                    Spacer(modifier = Modifier.height(16.dp))
 
-                    if (!user.bio.isNullOrBlank()) {
-                        Card(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 16.dp),
-                            shape = RoundedCornerShape(24.dp),
-                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
-                        ) {
-                            Column(modifier = Modifier.padding(20.dp)) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(
-                                        Icons.Default.Person,
-                                        contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.primary,
-                                        modifier = Modifier.size(20.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    Text(
-                                        text = "О себе",
-                                        style = MaterialTheme.typography.labelLarge,
-                                        color = MaterialTheme.colorScheme.primary
-                                    )
-                                }
-                                Spacer(modifier = Modifier.height(8.dp))
-                                Text(
-                                    text = user.bio,
-                                    style = MaterialTheme.typography.bodyLarge
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp),
+                        shape = RoundedCornerShape(20.dp),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                    ) {
+                        Column(modifier = Modifier.fillMaxWidth()) {
+                            if (!user.bio.isNullOrBlank()) {
+                                InfoRow(
+                                    title = user.bio,
+                                    subtitle = "Bio",
+                                    trailingIcon = null
                                 )
+                                HorizontalDivider(color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.1f), modifier = Modifier.padding(horizontal = 16.dp))
                             }
+
+                            InfoRow(
+                                title = "@${user.username}",
+                                subtitle = "Username",
+                                trailingIcon = Icons.Default.QrCode
+                            )
+                            HorizontalDivider(color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.1f), modifier = Modifier.padding(horizontal = 16.dp))
+
+                            InfoRow(
+                                title = "TODO",
+                                subtitle = "Birthday",
+                                trailingIcon = null
+                            )
                         }
                     }
+                    
+                    Spacer(modifier = Modifier.height(32.dp))
                 }
             } else {
                  Text("User not found", modifier = Modifier.align(Alignment.Center))
             }
+        }
+    }
+}
+
+@Composable
+fun ActionCard(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    Card(
+        modifier = modifier.height(64.dp),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)),
+        onClick = onClick
+    ) {
+        Column(
+            modifier = Modifier.fillMaxSize(),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            Icon(icon, contentDescription = label, modifier = Modifier.size(20.dp))
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(label, style = MaterialTheme.typography.labelSmall)
+        }
+    }
+}
+
+@Composable
+fun InfoRow(title: String, subtitle: String, trailingIcon: androidx.compose.ui.graphics.vector.ImageVector?) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            Text(
+                text = subtitle,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+        if (trailingIcon != null) {
+            Icon(
+                imageVector = trailingIcon,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(24.dp)
+            )
         }
     }
 }
