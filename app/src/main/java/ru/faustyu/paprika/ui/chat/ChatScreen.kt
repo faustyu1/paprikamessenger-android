@@ -551,45 +551,45 @@ fun ChatScreen(
             } // end Column
         }
     ) { padding ->
-        val displayMessages = if (searchText.isBlank()) viewModel.messages
-            else viewModel.messages.filter { it.content.contains(searchText, ignoreCase = true) }
-
-        val unreadCount = viewModel.initialUnreadCount.value
-        val chatItems = remember(displayMessages, unreadCount) {
-            if (displayMessages.isEmpty()) return@remember emptyList<ChatListItem>()
-            val result = mutableListOf<ChatListItem>()
-            // messages are in reverse order (newest first), so unread separator goes before index = unreadCount
-            val unreadSepIndex = if (unreadCount > 0 && unreadCount < displayMessages.size) unreadCount.toInt() else -1
-            displayMessages.forEachIndexed { index, msg ->
-                result.add(ChatListItem.MessageItem(msg))
-                if (index == unreadSepIndex - 1) {
-                    result.add(ChatListItem.UnreadSeparator)
-                }
-                val msgDate = run {
-                    val inst = java.time.Instant.ofEpochSecond(msg.timestamp)
-                    val today = java.time.LocalDate.now()
-                    val ld = inst.atZone(java.time.ZoneId.systemDefault()).toLocalDate()
-                    when {
-                        ld == today -> "Сегодня"
-                        ld == today.minusDays(1) -> "Вчера"
-                        else -> ld.format(java.time.format.DateTimeFormatter.ofPattern("d MMMM yyyy", java.util.Locale("ru")))
+        val chatItems by remember {
+            derivedStateOf {
+                val unreadCount = viewModel.initialUnreadCount.value
+                val displayMessages = if (searchText.isBlank()) viewModel.messages
+                    else viewModel.messages.filter { it.content.contains(searchText, ignoreCase = true) }
+                if (displayMessages.isEmpty()) return@derivedStateOf emptyList<ChatListItem>()
+                val result = mutableListOf<ChatListItem>()
+                val unreadSepIndex = if (unreadCount > 0 && unreadCount < displayMessages.size) unreadCount.toInt() else -1
+                displayMessages.forEachIndexed { index, msg ->
+                    result.add(ChatListItem.MessageItem(msg))
+                    if (index == unreadSepIndex - 1) {
+                        result.add(ChatListItem.UnreadSeparator)
+                    }
+                    val msgDate = run {
+                        val inst = java.time.Instant.ofEpochSecond(msg.timestamp)
+                        val today = java.time.LocalDate.now()
+                        val ld = inst.atZone(java.time.ZoneId.systemDefault()).toLocalDate()
+                        when {
+                            ld == today -> "Сегодня"
+                            ld == today.minusDays(1) -> "Вчера"
+                            else -> ld.format(java.time.format.DateTimeFormatter.ofPattern("d MMMM yyyy", java.util.Locale("ru")))
+                        }
+                    }
+                    val nextDate = displayMessages.getOrNull(index + 1)?.let { nm ->
+                        val inst = java.time.Instant.ofEpochSecond(nm.timestamp)
+                        val today = java.time.LocalDate.now()
+                        val ld = inst.atZone(java.time.ZoneId.systemDefault()).toLocalDate()
+                        when {
+                            ld == today -> "Сегодня"
+                            ld == today.minusDays(1) -> "Вчера"
+                            else -> ld.format(java.time.format.DateTimeFormatter.ofPattern("d MMMM yyyy", java.util.Locale("ru")))
+                        }
+                    }
+                    if (nextDate == null || nextDate != msgDate) {
+                        result.add(ChatListItem.DateSeparator(msgDate))
                     }
                 }
-                val nextDate = displayMessages.getOrNull(index + 1)?.let { nm ->
-                    val inst = java.time.Instant.ofEpochSecond(nm.timestamp)
-                    val today = java.time.LocalDate.now()
-                    val ld = inst.atZone(java.time.ZoneId.systemDefault()).toLocalDate()
-                    when {
-                        ld == today -> "Сегодня"
-                        ld == today.minusDays(1) -> "Вчера"
-                        else -> ld.format(java.time.format.DateTimeFormatter.ofPattern("d MMMM yyyy", java.util.Locale("ru")))
-                    }
-                }
-                if (nextDate == null || nextDate != msgDate) {
-                    result.add(ChatListItem.DateSeparator(msgDate))
-                }
+                result
             }
-            result
         }
 
         val listState = rememberLazyListState()
