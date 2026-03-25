@@ -25,6 +25,7 @@ class PrefsManager(context: Context) {
         private const val KEY_APP_LOCK = "app_lock_enabled"
         private const val KEY_PIN_HASH = "pin_hash"
         private const val KEY_NOTIFICATION_SOUND = "notification_sound"
+        private const val KEY_USERNAME = "username" // saved after register for re-login
     }
 
     var token: String?
@@ -65,6 +66,13 @@ class PrefsManager(context: Context) {
     var notificationSound: Boolean
         get() = prefs.getBoolean(KEY_NOTIFICATION_SOUND, true)
         set(value) { prefs.edit().putBoolean(KEY_NOTIFICATION_SOUND, value).apply() }
+
+    var savedUsername: String?
+        get() = prefs.getString(KEY_USERNAME, null)
+        set(value) {
+            if (value == null) prefs.edit().remove(KEY_USERNAME).apply()
+            else prefs.edit().putString(KEY_USERNAME, value).apply()
+        }
 
     fun getDraft(chatId: String): String? = prefs.getString("draft_$chatId", null)
 

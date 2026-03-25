@@ -8,11 +8,12 @@ import retrofit2.http.GET
 import retrofit2.http.POST
 import retrofit2.http.Query
 
-data class AuthRequest(
+// ── Passwordless auth models ──────────────────────────────────────────────
+
+data class RegisterRequest(
     @SerializedName("username") val username: String,
-    @SerializedName("password") val password: String,
-    @SerializedName("public_key") val public_key: String? = null,
-    @SerializedName("first_name") val first_name: String = "",
+    @SerializedName("public_key") val public_key: String,
+    @SerializedName("first_name") val first_name: String,
     @SerializedName("last_name") val last_name: String = ""
 )
 
@@ -21,12 +22,57 @@ data class AuthResponse(
     val error: String?
 )
 
-interface ApiService {
-    @POST("/register")
-    suspend fun register(@Body request: AuthRequest): Response<AuthResponse>
+data class ChallengeRequest(@SerializedName("username") val username: String)
+data class ChallengeResponse(val challenge_id: String, val challenge: String)
 
-    @POST("/login")
-    suspend fun login(@Body request: AuthRequest): Response<AuthResponse>
+data class VerifyRequest(
+    @SerializedName("challenge_id") val challenge_id: String,
+    @SerializedName("signature") val signature: String
+)
+
+data class QRCreateResponse(val qr_id: String, val challenge: String)
+data class QRConfirmRequest(
+    @SerializedName("qr_id") val qr_id: String,
+    @SerializedName("signature") val signature: String
+)
+data class QRStatusResponse(val status: String, val token: String?)
+
+data class KeyBackupRequest(
+    @SerializedName("encrypted_backup") val encrypted_backup: String,
+    @SerializedName("salt") val salt: String
+)
+data class KeyBackupResponse(val encrypted_backup: String, val salt: String)
+
+// ── API interface ─────────────────────────────────────────────────────────
+
+interface ApiService {
+    // Registration (passwordless — public key only)
+    @POST("/register")
+    suspend fun register(@Body request: RegisterRequest): Response<AuthResponse>
+
+    // Challenge-response login
+    @POST("/auth/challenge")
+    suspend fun createChallenge(@Body request: ChallengeRequest): Response<ChallengeResponse>
+
+    @POST("/auth/verify")
+    suspend fun verifyChallenge(@Body request: VerifyRequest): Response<AuthResponse>
+
+    // QR login (from another device)
+    @POST("/auth/qr/create")
+    suspend fun createQRSession(): Response<QRCreateResponse>
+
+    @POST("/auth/qr/confirm")
+    suspend fun confirmQRSession(@Body request: QRConfirmRequest): Response<Map<String, String>>
+
+    @GET("/auth/qr/status/{id}")
+    suspend fun pollQRSession(@retrofit2.http.Path("id") id: String): Response<QRStatusResponse>
+
+    // Key backup (encrypted on client, decrypted with PIN)
+    @POST("/auth/backup")
+    suspend fun saveKeyBackup(@Body request: KeyBackupRequest): Response<Map<String, String>>
+
+    @GET("/auth/backup/{username}")
+    suspend fun getKeyBackup(@retrofit2.http.Path("username") username: String): Response<KeyBackupResponse>
 
     @GET("/users/search")
     suspend fun searchUsers(@Query("q") query: String): Response<List<UserPublic>>

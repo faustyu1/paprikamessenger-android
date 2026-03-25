@@ -1,17 +1,16 @@
 package ru.faustyu.paprika.ui.auth
 
 import androidx.compose.foundation.layout.*
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
-
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Settings
 import ru.faustyu.paprika.R
+import ru.faustyu.paprika.util.CryptoManager
 
 @Composable
 fun AuthScreen(
@@ -21,10 +20,14 @@ fun AuthScreen(
 ) {
     var isLogin by remember { mutableStateOf(true) }
     var username by remember { mutableStateOf("") }
-    var password by remember { mutableStateOf("") }
     var firstName by remember { mutableStateOf("") }
     var lastName by remember { mutableStateOf("") }
     var showUrlDialog by remember { mutableStateOf(false) }
+
+    // Generate auth key once on first launch (no-op if already exists)
+    LaunchedEffect(Unit) {
+        CryptoManager.generateAuthKeyIfNeeded()
+    }
 
     Box(modifier = Modifier.fillMaxSize()) {
         IconButton(
@@ -47,7 +50,8 @@ fun AuthScreen(
             verticalArrangement = Arrangement.Center
         ) {
             Text(
-                text = if (isLogin) stringResource(R.string.auth_title_login) else stringResource(R.string.auth_title_register),
+                text = if (isLogin) stringResource(R.string.auth_title_login)
+                       else stringResource(R.string.auth_title_register),
                 style = MaterialTheme.typography.displayMedium,
                 color = MaterialTheme.colorScheme.primary
             )
@@ -63,6 +67,7 @@ fun AuthScreen(
                 Spacer(modifier = Modifier.height(16.dp))
             }
 
+            // ── Register: имя + логин ──────────────────────────────────
             if (!isLogin) {
                 OutlinedTextField(
                     value = firstName,
@@ -72,7 +77,6 @@ fun AuthScreen(
                     enabled = !viewModel.isLoading,
                     singleLine = true
                 )
-
                 Spacer(modifier = Modifier.height(16.dp))
 
                 OutlinedTextField(
@@ -83,61 +87,77 @@ fun AuthScreen(
                     enabled = !viewModel.isLoading,
                     singleLine = true
                 )
-
                 Spacer(modifier = Modifier.height(16.dp))
             }
 
             OutlinedTextField(
                 value = username,
                 onValueChange = { username = it },
-                label = { Text(if (isLogin) stringResource(R.string.auth_username_login) else stringResource(R.string.auth_username_register)) },
+                label = {
+                    Text(
+                        if (isLogin) stringResource(R.string.auth_username_login)
+                        else stringResource(R.string.auth_username_register)
+                    )
+                },
                 supportingText = {
-                    if (!isLogin) {
-                        Text(stringResource(R.string.auth_username_hint))
-                    }
+                    if (!isLogin) Text(stringResource(R.string.auth_username_hint))
                 },
                 modifier = Modifier.fillMaxWidth(),
-                enabled = !viewModel.isLoading
-            )
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            OutlinedTextField(
-                value = password,
-                onValueChange = { password = it },
-                label = { Text(stringResource(R.string.auth_password)) },
-                visualTransformation = PasswordVisualTransformation(),
-                modifier = Modifier.fillMaxWidth(),
-                enabled = !viewModel.isLoading
+                enabled = !viewModel.isLoading,
+                singleLine = true
             )
 
             Spacer(modifier = Modifier.height(24.dp))
 
             Button(
                 onClick = {
-                    viewModel.authenticate(isLogin, username, password, firstName, lastName, onSuccess = { token ->
-                        onLoginSuccess(token)
-                    })
+                    if (isLogin) {
+                        viewModel.login(username.trim(), onSuccess = onLoginSuccess)
+                    } else {
+                        viewModel.register(
+                            username = username.trim(),
+                            firstName = firstName.trim(),
+                            lastName = lastName.trim(),
+                            onSuccess = onLoginSuccess
+                        )
+                    }
                 },
                 modifier = Modifier.fillMaxWidth(),
                 enabled = !viewModel.isLoading
             ) {
                 if (viewModel.isLoading) {
-                    CircularProgressIndicator(modifier = Modifier.size(24.dp), color = MaterialTheme.colorScheme.onPrimary)
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(24.dp),
+                        color = MaterialTheme.colorScheme.onPrimary
+                    )
                 } else {
-                    Text(if (isLogin) stringResource(R.string.auth_sign_in) else stringResource(R.string.auth_sign_up))
+                    Text(
+                        if (isLogin) stringResource(R.string.auth_sign_in)
+                        else stringResource(R.string.auth_sign_up)
+                    )
                 }
             }
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            TextButton(onClick = { isLogin = !isLogin }, enabled = !viewModel.isLoading) {
-                Text(if (isLogin) stringResource(R.string.auth_no_account) else stringResource(R.string.auth_have_account))
+            TextButton(
+                onClick = {
+                    isLogin = !isLogin
+                    viewModel.clearError()
+                },
+                enabled = !viewModel.isLoading
+            ) {
+                Text(
+                    if (isLogin) stringResource(R.string.auth_no_account)
+                    else stringResource(R.string.auth_have_account)
+                )
             }
         }
 
         if (showUrlDialog) {
-            var tempUrl by remember { mutableStateOf(ru.faustyu.paprika.data.network.NetworkModule.getCurrentUrl()) }
+            var tempUrl by remember {
+                mutableStateOf(ru.faustyu.paprika.data.network.NetworkModule.getCurrentUrl())
+            }
             AlertDialog(
                 onDismissRequest = { showUrlDialog = false },
                 title = { Text(stringResource(R.string.auth_server_url_title)) },
