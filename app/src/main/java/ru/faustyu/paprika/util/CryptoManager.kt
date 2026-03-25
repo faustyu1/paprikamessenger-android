@@ -70,7 +70,7 @@ object CryptoManager {
         val challengeBytes = challengeHex.chunked(2).map { it.toInt(16).toByte() }.toByteArray()
 
         val keyStore = KeyStore.getInstance(KEYSTORE_PROVIDER).apply { load(null) }
-        val privateKey = keyStore.getKey(KEYSTORE_AUTH_ALIAS, null)
+        val privateKey = keyStore.getKey(KEYSTORE_AUTH_ALIAS, null) as? java.security.PrivateKey
             ?: throw IllegalStateException("Auth key not found in Keystore")
 
         val sig = Signature.getInstance("SHA256withECDSA").apply {
