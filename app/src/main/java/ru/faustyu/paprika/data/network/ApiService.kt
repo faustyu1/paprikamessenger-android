@@ -249,7 +249,7 @@ data class MessageDto(
     val content: String,
     val type: String,
     val status: String,
-    val created_at: String,
+    val created_at: Long,
     val edited_at: Long? = null,
     val reply_to_message_id: Long? = null,
     val reply_to_message: ReplyToDto? = null,

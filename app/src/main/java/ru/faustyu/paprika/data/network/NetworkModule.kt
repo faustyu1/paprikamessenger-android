@@ -30,6 +30,9 @@ object NetworkModule {
         OkHttpClient.Builder()
             .addInterceptor(logging)
             .addInterceptor(authInterceptor)
+            .protocols(listOf(okhttp3.Protocol.HTTP_1_1))
+            .connectTimeout(15, java.util.concurrent.TimeUnit.SECONDS)
+            .readTimeout(15, java.util.concurrent.TimeUnit.SECONDS)
             .build()
     }
 

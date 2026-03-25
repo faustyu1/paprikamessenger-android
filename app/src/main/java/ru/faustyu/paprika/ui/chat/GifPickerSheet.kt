@@ -30,6 +30,74 @@ import java.net.URL
 
 data class GifItem(val id: String, val previewUrl: String, val originalUrl: String)
 
+@Composable
+fun GifPickerInline(onGifSelected: (String) -> Unit) {
+    val context = LocalContext.current
+    val imageLoader = remember {
+        ImageLoader.Builder(context).components { add(GifDecoder.Factory()) }.build()
+    }
+    var query by remember { mutableStateOf("") }
+    var gifs by remember { mutableStateOf<List<GifItem>>(emptyList()) }
+    var isLoading by remember { mutableStateOf(true) }
+    val focusManager = LocalFocusManager.current
+
+    LaunchedEffect(Unit) {
+        gifs = searchGiphy("trending")
+        isLoading = false
+    }
+
+    Column(modifier = Modifier.fillMaxSize()) {
+        OutlinedTextField(
+            value = query,
+            onValueChange = { query = it },
+            placeholder = { Text("Поиск GIF...") },
+            leadingIcon = { Icon(Icons.Filled.Search, null) },
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp),
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+            keyboardActions = KeyboardActions(onSearch = {
+                focusManager.clearFocus()
+                isLoading = true
+            }),
+        )
+
+        LaunchedEffect(isLoading) {
+            if (isLoading) {
+                gifs = searchGiphy(query.ifBlank { "trending" })
+                isLoading = false
+            }
+        }
+
+        if (isLoading) {
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                CircularProgressIndicator()
+            }
+        } else {
+            LazyVerticalGrid(
+                columns = GridCells.Fixed(3),
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(4.dp),
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                items(gifs) { gif ->
+                    AsyncImage(
+                        model = coil.request.ImageRequest.Builder(context)
+                            .data(gif.previewUrl).crossfade(true).build(),
+                        imageLoader = imageLoader,
+                        contentDescription = null,
+                        modifier = Modifier
+                            .aspectRatio(1f)
+                            .clip(RoundedCornerShape(8.dp))
+                            .clickable { onGifSelected(gif.originalUrl) },
+                        contentScale = ContentScale.Crop,
+                    )
+                }
+            }
+        }
+    }
+}
+
 suspend fun searchGiphy(query: String): List<GifItem> = withContext(Dispatchers.IO) {
     try {
         val apiKey = "dc6zaTOxFJmzC"

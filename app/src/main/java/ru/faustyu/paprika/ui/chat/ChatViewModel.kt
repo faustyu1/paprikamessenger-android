@@ -187,7 +187,7 @@ class ChatViewModel(application: android.app.Application) : androidx.lifecycle.A
                                     content = dto.content,
                                     isMe = (dto.sender_id == myUserId),
                                     type = dto.type,
-                                    timestamp = try { java.time.Instant.parse(dto.created_at).epochSecond } catch (_: Exception) { 0L }
+                                    timestamp = dto.created_at
                                 )
                             }
                         }
@@ -206,11 +206,7 @@ class ChatViewModel(application: android.app.Application) : androidx.lifecycle.A
                             content = msg.content,
                             type = msg.type,
                             status = if (msg.status == "sent") "read" else msg.status,
-                            createdAt = try {
-                                java.time.Instant.parse(msg.created_at).epochSecond
-                            } catch (e: Exception) {
-                                System.currentTimeMillis() / 1000
-                            },
+                            createdAt = msg.created_at,
                             isMe = (msg.sender_id == myUserId)
                         )
                     }
@@ -652,13 +648,10 @@ class ChatViewModel(application: android.app.Application) : androidx.lifecycle.A
                     sb.appendLine("Экспорт чата")
                     sb.appendLine("=============")
                     messages.reversed().forEach { msg ->
-                        val time = try {
-                            val inst = java.time.Instant.parse(msg.created_at)
-                            java.time.format.DateTimeFormatter
-                                .ofPattern("dd.MM.yyyy HH:mm")
-                                .withZone(java.time.ZoneId.systemDefault())
-                                .format(inst)
-                        } catch (_: Exception) { msg.created_at }
+                        val time = java.time.format.DateTimeFormatter
+                            .ofPattern("dd.MM.yyyy HH:mm")
+                            .withZone(java.time.ZoneId.systemDefault())
+                            .format(java.time.Instant.ofEpochSecond(msg.created_at))
                         sb.appendLine("[$time] ${msg.sender_id}: ${msg.content}")
                     }
                     val fileName = "chat_${chatId}_export.txt"

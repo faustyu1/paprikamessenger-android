@@ -1,7 +1,5 @@
 package ru.faustyu.paprika.ui.chat
 
-import android.Manifest
-import android.content.pm.PackageManager
 import android.media.MediaPlayer
 import android.net.Uri
 import android.widget.VideoView
@@ -49,7 +47,6 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
-import androidx.core.content.ContextCompat
 import coil.ImageLoader
 import coil.compose.AsyncImage
 import coil.compose.SubcomposeAsyncImage
@@ -117,9 +114,6 @@ fun ChatScreen(
     var showAddMemberDialog by remember { mutableStateOf(false) }
     var isRecordingVoice by remember { mutableStateOf(false) }
     var recordingDuration by remember { mutableIntStateOf(0) }
-    var showStickerSheet by remember { mutableStateOf(false) }
-    var showGifSheet by remember { mutableStateOf(false) }
-    val stickers = remember { listOf("😀","😂","❤️","👍","🎉","😎","🤔","😢","🔥","✨","💯","🙏","😍","😭","🤣","😊","👀","💪","🎊","🌟") }
 
     val title = viewModel.chatTitle.value
     val subtitle = viewModel.chatSubtitle.value
@@ -349,52 +343,6 @@ fun ChatScreen(
         )
     }
 
-    // GIF picker sheet
-    if (showGifSheet) {
-        GifPickerSheet(
-            onGifSelected = { gifUrl ->
-                viewModel.sendGif(chatId, gifUrl)
-                showGifSheet = false
-            },
-            onDismiss = { showGifSheet = false }
-        )
-    }
-
-    // Sticker picker sheet
-    if (showStickerSheet) {
-        androidx.compose.material3.ModalBottomSheet(
-            onDismissRequest = { showStickerSheet = false }
-        ) {
-            Text(
-                "Стикеры",
-                style = MaterialTheme.typography.titleMedium,
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
-            )
-            androidx.compose.foundation.lazy.grid.LazyVerticalGrid(
-                columns = androidx.compose.foundation.lazy.grid.GridCells.Fixed(5),
-                modifier = Modifier.padding(horizontal = 8.dp).heightIn(max = 300.dp),
-                contentPadding = PaddingValues(bottom = 32.dp)
-            ) {
-                items(stickers.size) { index ->
-                    val sticker = stickers[index]
-                    Box(
-                        modifier = Modifier
-                            .padding(4.dp)
-                            .size(56.dp)
-                            .clip(RoundedCornerShape(8.dp))
-                            .clickable {
-                                viewModel.sendMessage(chatId, sticker)
-                                showStickerSheet = false
-                            },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(sticker, style = MaterialTheme.typography.headlineMedium)
-                    }
-                }
-            }
-        }
-    }
-
     Scaffold(
         snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
@@ -555,137 +503,50 @@ fun ChatScreen(
                 }
             }
 
-            if (isRecordingVoice) {
-                // Voice recording bar
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 8.dp, vertical = 4.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    IconButton(onClick = {
-                        VoiceRecorder.cancelRecording()
-                        isRecordingVoice = false
-                    }) {
-                        Icon(Icons.Filled.Delete, contentDescription = "Cancel", tint = Color.Red)
-                    }
-                    Box(modifier = Modifier.weight(1f).padding(horizontal = 8.dp)) {
-                        RecordingWaveform()
-                    }
-                    Text(
-                        text = "%02d:%02d".format(recordingDuration / 60, recordingDuration % 60),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = Color.Red
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    IconButton(onClick = {
-                        val path = VoiceRecorder.stopRecording()
-                        isRecordingVoice = false
-                        path?.let { viewModel.sendVoice(chatId, it, context) }
-                    }) {
-                        Icon(Icons.AutoMirrored.Filled.Send, contentDescription = "Send voice")
-                    }
-                }
-            } else if (!canWrite) {
-                // Channel read-only banner
+            if (!canWrite) {
                 Box(
                     modifier = Modifier.fillMaxWidth().padding(12.dp),
-                    contentAlignment = Alignment.Center
+                    contentAlignment = Alignment.Center,
                 ) {
                     Text(
                         "Только администраторы могут писать",
                         style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
             } else {
-                // Normal input bar
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(8.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    // Disappearing timer toggle
-                    val timerSec = viewModel.disappearingTimerSec.value
-                    val timerLabel = when (timerSec) {
-                        3600L -> "1ч"; 86400L -> "1д"; 604800L -> "7д"; 2592000L -> "30д"; else -> null
-                    }
-                    BadgedBox(
-                        badge = { if (timerLabel != null) Badge { Text(timerLabel, style = MaterialTheme.typography.labelSmall) } },
-                        modifier = Modifier.size(40.dp)
-                    ) {
-                        IconButton(onClick = {
-                            viewModel.disappearingTimerSec.value = when (timerSec) {
-                                0L -> 3600L; 3600L -> 86400L; 86400L -> 604800L; 604800L -> 2592000L; else -> 0L
-                            }
-                        }) {
-                            Icon(Icons.Filled.Timer, contentDescription = "Таймер исчезновения", modifier = Modifier.size(20.dp))
-                        }
-                    }
-
-                    // Attach: image or file
-                    Box {
-                        var showAttachMenu by remember { mutableStateOf(false) }
-                        IconButton(onClick = { showAttachMenu = true }) {
-                            Icon(Icons.Default.Add, contentDescription = "Прикрепить")
-                        }
-                        DropdownMenu(expanded = showAttachMenu, onDismissRequest = { showAttachMenu = false }) {
-                            DropdownMenuItem(
-                                text = { Text("Фото") },
-                                leadingIcon = { Icon(Icons.Filled.Image, null) },
-                                onClick = {
-                                    showAttachMenu = false
-                                    pickMedia.launch(androidx.activity.result.PickVisualMediaRequest(
-                                        androidx.activity.result.contract.ActivityResultContracts.PickVisualMedia.ImageOnly
-                                    ))
-                                }
+                MessageInputBar(
+                    inputText = inputText,
+                    onInputChange = { inputText = it },
+                    onSend = {
+                        viewModel.sendMessage(chatId, inputText)
+                        inputText = ""
+                    },
+                    onPickImage = {
+                        pickMedia.launch(
+                            androidx.activity.result.PickVisualMediaRequest(
+                                androidx.activity.result.contract.ActivityResultContracts.PickVisualMedia.ImageAndVideo
                             )
-                            DropdownMenuItem(
-                                text = { Text("Файл") },
-                                leadingIcon = { Icon(Icons.Filled.InsertDriveFile, null) },
-                                onClick = { showAttachMenu = false; pickFile.launch("*/*") }
-                            )
-                        }
-                    }
-
-                    TextField(
-                        value = inputText,
-                        onValueChange = { inputText = it },
-                        modifier = Modifier.weight(1f),
-                        placeholder = { Text("Сообщение") }
-                    )
-
-                    if (inputText.isNotBlank()) {
-                        IconButton(onClick = {
-                            viewModel.sendMessage(chatId, inputText)
-                            inputText = ""
-                        }) {
-                            Icon(Icons.AutoMirrored.Filled.Send, contentDescription = "Отправить")
-                        }
-                    } else {
-                        IconButton(onClick = {
-                            if (ContextCompat.checkSelfPermission(
-                                    context, Manifest.permission.RECORD_AUDIO
-                                ) == PackageManager.PERMISSION_GRANTED
-                            ) {
-                                VoiceRecorder.startRecording(context)
-                                isRecordingVoice = true
-                            }
-                        }) {
-                            Icon(Icons.Filled.Mic, contentDescription = "Голосовое")
-                        }
-                        IconButton(onClick = onVideoCircleClick) {
-                            Icon(Icons.Filled.RadioButtonChecked, contentDescription = "Видеосообщение")
-                        }
-                        IconButton(onClick = { showStickerSheet = true }) {
-                            Icon(Icons.Filled.EmojiEmotions, contentDescription = "Стикеры")
-                        }
-                        IconButton(onClick = { showGifSheet = true }) {
-                            Text("GIF", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
-                        }
-                    }
-                }
+                        )
+                    },
+                    onPickFile = { pickFile.launch("*/*") },
+                    onVideoCircle = onVideoCircleClick,
+                    isRecording = isRecordingVoice,
+                    recordingDuration = recordingDuration,
+                    onVoiceCancel = {
+                        VoiceRecorder.cancelRecording()
+                        isRecordingVoice = false
+                    },
+                    onVoiceSend = {
+                        val path = VoiceRecorder.stopRecording()
+                        isRecordingVoice = false
+                        path?.let { viewModel.sendVoice(chatId, it, context) }
+                    },
+                    onVoiceStart = { isRecordingVoice = true },
+                    onStickerSend = { viewModel.sendMessage(chatId, it) },
+                    onGifSend = { viewModel.sendGif(chatId, it) },
+                    modifier = Modifier.fillMaxWidth(),
+                )
             }
             } // end Column
         }
