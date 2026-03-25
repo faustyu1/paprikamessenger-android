@@ -72,9 +72,6 @@ class SearchViewModel(application: android.app.Application) : androidx.lifecycle
             val response = NetworkModule.api.searchUsers(q)
             if (response.isSuccessful) {
                 users = response.body() ?: emptyList()
-                if (users.isNotEmpty()) {
-                    saveToHistory(q)
-                }
             }
         } catch (e: Exception) {
             // Handle error
@@ -83,9 +80,11 @@ class SearchViewModel(application: android.app.Application) : androidx.lifecycle
         }
     }
 
-    private fun saveToHistory(q: String) {
+    fun saveToHistory(user: ru.faustyu.paprika.data.network.UserPublic) {
+        val name = user.first_name?.takeIf { it.isNotBlank() }
+            ?.let { "$it ${user.last_name ?: ""}".trim() } ?: user.username
         viewModelScope.launch {
-            historyDao.insert(SearchHistoryEntity(query = q, timestamp = System.currentTimeMillis()))
+            historyDao.insert(SearchHistoryEntity(query = name, timestamp = System.currentTimeMillis()))
         }
     }
 
@@ -110,11 +109,11 @@ class SearchViewModel(application: android.app.Application) : androidx.lifecycle
                 if (response.isSuccessful) {
                     val chat = response.body()
                     chat?.let {
+                        saveToHistory(user)  // save only on actual open
                         onChatReady(it.id.toString())
                     }
                 }
             } catch (e: Exception) {
-                // error
                 e.printStackTrace()
             } finally {
                 isLoading = false
@@ -235,9 +234,9 @@ fun SearchScreen(
                                 .padding(16.dp),
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
-                            Text(stringResource(R.string.search_recent), style = MaterialTheme.typography.titleSmall)
+                            Text("Recent", style = MaterialTheme.typography.titleSmall)
                             Text(
-                                stringResource(R.string.search_clear),
+                                "Clear All",
                                 color = MaterialTheme.colorScheme.primary,
                                 modifier = Modifier.clickable { viewModel.clearHistory() }
                             )
@@ -246,7 +245,21 @@ fun SearchScreen(
                     items(viewModel.history) { item ->
                         ListItem(
                             headlineContent = { Text(item.query) },
-                            leadingContent = { Icon(Icons.Default.Search, contentDescription = null) },
+                            leadingContent = {
+                                Surface(
+                                    shape = CircleShape,
+                                    color = MaterialTheme.colorScheme.secondaryContainer,
+                                    modifier = Modifier.size(40.dp)
+                                ) {
+                                    Box(contentAlignment = Alignment.Center) {
+                                        Text(
+                                            item.query.take(1).uppercase(),
+                                            style = MaterialTheme.typography.titleMedium,
+                                            color = MaterialTheme.colorScheme.onSecondaryContainer
+                                        )
+                                    }
+                                }
+                            },
                             modifier = Modifier.clickable { viewModel.onQueryChange(item.query) }
                         )
                     }
