@@ -231,12 +231,12 @@ fun ChatScreen(
             Column(modifier = Modifier.padding(bottom = 32.dp)) {
                 ListItem(
                     headlineContent = { Text("Ответить") },
-                    leadingContent = { Icon(Icons.Filled.Reply, null) },
+                    leadingContent = { Icon(Icons.AutoMirrored.Filled.Reply, null) },
                     modifier = Modifier.clickable { viewModel.setReply(msg); selectedMessage = null }
                 )
                 ListItem(
                     headlineContent = { Text("Переслать") },
-                    leadingContent = { Icon(Icons.Filled.Forward, null) },
+                    leadingContent = { Icon(Icons.AutoMirrored.Filled.Forward, null) },
                     modifier = Modifier.clickable { showForwardSheet = true; selectedMessage = null }
                 )
                 ListItem(
@@ -804,7 +804,7 @@ private fun MessageBubble(
                                     verticalAlignment = Alignment.CenterVertically,
                                     modifier = Modifier.widthIn(min = 160.dp, max = 240.dp)
                                 ) {
-                                    Icon(Icons.Filled.InsertDriveFile, contentDescription = null, modifier = Modifier.size(28.dp))
+                                    Icon(Icons.AutoMirrored.Filled.InsertDriveFile, contentDescription = null, modifier = Modifier.size(28.dp))
                                     Spacer(Modifier.width(8.dp))
                                     Text(
                                         message.content.substringAfterLast("/").substringBefore("?"),

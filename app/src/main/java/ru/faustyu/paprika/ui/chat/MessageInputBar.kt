@@ -225,7 +225,7 @@ fun MessageInputBar(
                                 )
                                 DropdownMenuItem(
                                     text = { Text("Файл") },
-                                    leadingIcon = { Icon(Icons.Filled.InsertDriveFile, null) },
+                                    leadingIcon = { Icon(Icons.AutoMirrored.Filled.InsertDriveFile, null) },
                                     onClick = { showAttachMenu = false; onPickFile() },
                                 )
                             }

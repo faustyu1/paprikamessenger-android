@@ -7,7 +7,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CallEnd
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.MicOff
-import androidx.compose.material.icons.filled.VolumeUp
+import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -127,7 +127,7 @@ fun CallScreen(
                         modifier = Modifier.size(56.dp)
                     ) {
                         Icon(
-                            Icons.Filled.VolumeUp,
+                            Icons.AutoMirrored.Filled.VolumeUp,
                             contentDescription = stringResource(R.string.call_speaker),
                             modifier = Modifier.size(24.dp)
                         )

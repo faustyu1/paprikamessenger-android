@@ -143,7 +143,7 @@ fun SearchScreen(
                 },
                 actions = {
                     IconButton(onClick = { /* TODO: Sort menu or similar */ }) {
-                        Icon(Icons.Default.Sort, contentDescription = "Sort")
+                        Icon(Icons.AutoMirrored.Filled.Sort, contentDescription = "Sort")
                     }
                 }
             )
@@ -302,7 +302,7 @@ fun SearchScreen(
                             }
                         }
                     )
-                    Divider()
+                    HorizontalDivider()
                 }
             }
         }

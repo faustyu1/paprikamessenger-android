@@ -145,7 +145,7 @@ fun ChatListScreen(
             ru.faustyu.paprika.ui.stories.StoriesBar(onStoryClick = {
                 // Navigate to view story
             })
-            Divider()
+            HorizontalDivider()
 
             LazyColumn {
                 // Prominent Profile Header
@@ -334,7 +334,7 @@ fun ChatListScreen(
                                 )
                             }
                         }
-                        Divider()
+                        HorizontalDivider()
                     }
                 }
 

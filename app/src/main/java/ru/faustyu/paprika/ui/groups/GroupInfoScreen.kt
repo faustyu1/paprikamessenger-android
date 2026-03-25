@@ -480,7 +480,7 @@ fun GroupInfoScreen(
                         headlineContent = { Text("Выйти из группы", color = MaterialTheme.colorScheme.error) },
                         leadingContent = {
                             Icon(
-                                Icons.Filled.ExitToApp,
+                                Icons.AutoMirrored.Filled.ExitToApp,
                                 contentDescription = null,
                                 tint = MaterialTheme.colorScheme.error
                             )
