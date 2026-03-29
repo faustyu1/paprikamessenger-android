@@ -89,8 +89,14 @@ class MainActivity : androidx.appcompat.app.AppCompatActivity() {
         prefs.backendUrl?.let { NetworkModule.setCustomUrl(it) }
         AppNotificationHelper.init(this)
 
+        // Silent token refresh: when Authenticator gets a new token, persist it
+        NetworkModule.onTokenRefreshed = { newToken ->
+            prefs.token = newToken
+        }
+
         val startDestination = if (prefs.token != null) {
             NetworkModule.authToken = prefs.token
+            NetworkModule.savedUsername = prefs.savedUsername
             AppWebSocketManager.connect(prefs.token!!, NetworkModule.getCurrentUrl())
             AppWebSocketManager.onNewMessage = { senderId ->
                 if (prefs.notificationSound && senderId != prefs.myUserId) {
@@ -236,9 +242,11 @@ class MainActivity : androidx.appcompat.app.AppCompatActivity() {
                     NavHost(navController = navController, startDestination = startDestination) {
                         composable("auth") {
                             AuthScreen(
-                                onLoginSuccess = { token ->
+                                onLoginSuccess = { token, username ->
                                     prefs.token = token
+                                    prefs.savedUsername = username
                                     NetworkModule.authToken = token
+                                    NetworkModule.savedUsername = username
                                     AppWebSocketManager.connect(token, NetworkModule.getCurrentUrl())
                                     AppWebSocketManager.onNewMessage = { senderId ->
                                         if (prefs.notificationSound && senderId != prefs.myUserId) {

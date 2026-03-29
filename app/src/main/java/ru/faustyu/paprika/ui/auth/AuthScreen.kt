@@ -15,7 +15,7 @@ import ru.faustyu.paprika.util.CryptoManager
 @Composable
 fun AuthScreen(
     viewModel: AuthViewModel = androidx.lifecycle.viewmodel.compose.viewModel(),
-    onLoginSuccess: (String) -> Unit,
+    onLoginSuccess: (token: String, username: String) -> Unit,
     onUrlChanged: (String) -> Unit
 ) {
     var isLogin by remember { mutableStateOf(true) }
@@ -111,14 +111,15 @@ fun AuthScreen(
 
             Button(
                 onClick = {
+                    val trimmed = username.trim()
                     if (isLogin) {
-                        viewModel.login(username.trim(), onSuccess = onLoginSuccess)
+                        viewModel.login(trimmed, onSuccess = { token -> onLoginSuccess(token, trimmed) })
                     } else {
                         viewModel.register(
-                            username = username.trim(),
+                            username = trimmed,
                             firstName = firstName.trim(),
                             lastName = lastName.trim(),
-                            onSuccess = onLoginSuccess
+                            onSuccess = { token -> onLoginSuccess(token, trimmed) }
                         )
                     }
                 },
