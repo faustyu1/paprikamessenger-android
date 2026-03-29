@@ -2,6 +2,7 @@ package ru.faustyu.paprika.ui.profile
 
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.snapping.rememberSnapFlingBehavior
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -158,18 +159,23 @@ fun WheelPicker(
 }
 
 // ────────────────────────────────────────────────────────────────────────────
-// Date picker dialog (Day + Month only — no year)
+// Date picker dialog  (Day + Month, optional Year)
 // ────────────────────────────────────────────────────────────────────────────
 
 /**
- * A fully custom Compose date-picker dialog with two drum-roll wheels:
- * Day and Month (no year — for birthday privacy).
+ * Fully custom Compose birthday picker.
  *
- * Stored format: "0000-MM-DD"  (year is always "0000")
+ * - Always shows Day and Month wheels.
+ * - A toggle row lets the user optionally include the year.
+ *   When the year is enabled a third Year wheel slides in.
  *
- * @param initialDate   existing value in "0000-MM-DD" or "YYYY-MM-DD" or empty
- * @param onDateSelected called with "0000-MM-DD" when the user taps OK
- * @param onDismiss     called when the dialog is dismissed without a result
+ * Stored format:
+ *   - Year hidden  → "0000-MM-DD"
+ *   - Year shown   → "YYYY-MM-DD"
+ *
+ * @param initialDate   existing value in "0000-MM-DD", "YYYY-MM-DD", or ""
+ * @param onDateSelected returns "0000-MM-DD" or "YYYY-MM-DD" on OK
+ * @param onDismiss     dismiss without saving
  */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -178,40 +184,60 @@ fun DateWheelPickerDialog(
     onDateSelected: (String) -> Unit,
     onDismiss: () -> Unit
 ) {
-    // Parse initial month/day — ignore year
-    var initMonth = 1
-    var initDay   = 1
+    val today   = Calendar.getInstance()
+    val maxYear = today.get(Calendar.YEAR)
+
+    // ── Parse initial values ────────────────────────────────────────────────
+    var initYear     = maxYear - 25
+    var initMonth    = 1
+    var initDay      = 1
+    var initShowYear = false          // year hidden by default
     if (initialDate.isNotBlank()) {
         runCatching {
             val p = initialDate.split("-")
-            initMonth = p[1].toInt().coerceIn(1, 12)
-            initDay   = p[2].toInt().coerceIn(1, 31)
+            val y = p[0].toInt()
+            initMonth    = p[1].toInt().coerceIn(1, 12)
+            initDay      = p[2].toInt().coerceIn(1, 31)
+            if (y > 0) { initYear = y.coerceIn(1900, maxYear); initShowYear = true }
         }
     }
 
     val monthNames = listOf("Jan","Feb","Mar","Apr","May","Jun",
                             "Jul","Aug","Sep","Oct","Nov","Dec")
+    val years = remember { (1900..maxYear).map { it.toString() } }
 
+    var selectedYear  by remember { mutableIntStateOf(initYear) }
     var selectedMonth by remember { mutableIntStateOf(initMonth) }
     var selectedDay   by remember { mutableIntStateOf(initDay) }
+    var showYear      by remember { mutableStateOf(initShowYear) }
 
-    // Use a non-leap year baseline for day counts (2001 = non-leap)
-    val daysInMonth by remember(selectedMonth) {
+    // Days in selected month; use selectedYear when showYear is true so Feb 29
+    // is valid in leap years, otherwise use a fixed non-leap baseline (2001)
+    val daysInMonth by remember(selectedMonth, selectedYear, showYear) {
         derivedStateOf {
             Calendar.getInstance().let { cal ->
-                cal.set(2001, selectedMonth - 1, 1)
+                val y = if (showYear) selectedYear else 2001
+                cal.set(y, selectedMonth - 1, 1)
                 cal.getActualMaximum(Calendar.DAY_OF_MONTH)
             }
         }
     }
 
-    // Clamp day when moving to a shorter month
     LaunchedEffect(daysInMonth) {
         if (selectedDay > daysInMonth) selectedDay = daysInMonth
     }
 
     val days = remember(daysInMonth) {
         (1..daysInMonth).map { it.toString().padStart(2, '0') }
+    }
+
+    // ── Preview text ────────────────────────────────────────────────────────
+    val previewText = buildString {
+        append("%02d %s".format(
+            selectedDay.coerceIn(1, daysInMonth),
+            monthNames.getOrElse(selectedMonth - 1) { "?" }
+        ))
+        if (showYear) append(" $selectedYear")
     }
 
     Dialog(onDismissRequest = onDismiss) {
@@ -222,29 +248,45 @@ fun DateWheelPickerDialog(
         ) {
             Column(modifier = Modifier.padding(horizontal = 24.dp, vertical = 20.dp)) {
 
-                // Title
+                // Title + live preview
                 Text(
                     text       = "Date of Birth",
                     style      = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.Bold,
                     color      = MaterialTheme.colorScheme.onSurface
                 )
-
                 Spacer(Modifier.height(4.dp))
-
-                // Live preview
                 Text(
-                    text  = "%02d %s".format(
-                        selectedDay.coerceIn(1, daysInMonth),
-                        monthNames.getOrElse(selectedMonth - 1) { "?" }
-                    ),
+                    text  = previewText,
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.primary
                 )
 
-                Spacer(Modifier.height(16.dp))
+                Spacer(Modifier.height(14.dp))
 
-                // Column headers
+                // "Include year" toggle
+                Row(
+                    modifier          = Modifier
+                        .fillMaxWidth()
+                        .clickable { showYear = !showYear }
+                        .padding(vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text     = "Include year",
+                        style    = MaterialTheme.typography.bodyMedium,
+                        color    = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier.weight(1f)
+                    )
+                    Switch(
+                        checked         = showYear,
+                        onCheckedChange = { showYear = it }
+                    )
+                }
+
+                Spacer(Modifier.height(10.dp))
+
+                // Column headers — dynamic based on showYear
                 Row(modifier = Modifier.fillMaxWidth()) {
                     Text(
                         "Day",
@@ -260,16 +302,25 @@ fun DateWheelPickerDialog(
                         style     = MaterialTheme.typography.labelSmall,
                         color     = MaterialTheme.colorScheme.onSurfaceVariant
                     )
+                    if (showYear) {
+                        Text(
+                            "Year",
+                            modifier  = Modifier.weight(1.4f),
+                            textAlign = TextAlign.Center,
+                            style     = MaterialTheme.typography.labelSmall,
+                            color     = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                 }
 
                 Spacer(Modifier.height(4.dp))
 
-                // Two wheels
+                // Wheels row
                 Row(
                     modifier          = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // Day — keyed on daysInMonth so it reinitialises when month changes
+                    // Day — keyed on daysInMonth so it reinitialises on month/year change
                     key(daysInMonth) {
                         WheelPicker(
                             items          = days,
@@ -285,6 +336,15 @@ fun DateWheelPickerDialog(
                         onIndexChanged = { selectedMonth = it + 1 },
                         modifier       = Modifier.weight(1.5f)
                     )
+
+                    if (showYear) {
+                        WheelPicker(
+                            items          = years,
+                            selectedIndex  = (selectedYear - 1900).coerceIn(0, years.size - 1),
+                            onIndexChanged = { selectedYear = it + 1900 },
+                            modifier       = Modifier.weight(1.4f)
+                        )
+                    }
                 }
 
                 Spacer(Modifier.height(12.dp))
@@ -294,20 +354,16 @@ fun DateWheelPickerDialog(
                     modifier              = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.End
                 ) {
-                    TextButton(onClick = onDismiss) {
-                        Text("Cancel")
-                    }
+                    TextButton(onClick = onDismiss) { Text("Cancel") }
                     Spacer(Modifier.width(8.dp))
                     Button(
                         onClick = {
-                            val day = selectedDay.coerceIn(1, daysInMonth)
-                            // Store as "0000-MM-DD" — year intentionally omitted
-                            onDateSelected("0000-%02d-%02d".format(selectedMonth, day))
+                            val day  = selectedDay.coerceIn(1, daysInMonth)
+                            val year = if (showYear) selectedYear else 0
+                            onDateSelected("%04d-%02d-%02d".format(year, selectedMonth, day))
                         },
                         shape = RoundedCornerShape(12.dp)
-                    ) {
-                        Text("OK")
-                    }
+                    ) { Text("OK") }
                 }
             }
         }
