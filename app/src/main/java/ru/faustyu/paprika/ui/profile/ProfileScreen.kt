@@ -129,7 +129,7 @@ class ProfileViewModel : ViewModel() {
     }
 }
 
-/** Format "YYYY-MM-DD" → "12 May" or "12 May 1998" */
+/** Format "0000-MM-DD" or "YYYY-MM-DD" → "12 May" (year 0000 is never shown) */
 fun formatBirthday(raw: String, showYear: Boolean = true): String {
     if (raw.isBlank()) return ""
     return try {
@@ -140,7 +140,8 @@ fun formatBirthday(raw: String, showYear: Boolean = true): String {
         val day = parts[2].toInt()
         val monthNames = listOf("Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec")
         val monthName = monthNames.getOrElse(month - 1) { month.toString() }
-        if (showYear) "$day $monthName $year" else "$day $monthName"
+        // year == 0 means "no year stored" — never show it
+        if (showYear && year > 0) "$day $monthName $year" else "$day $monthName"
     } catch (e: Exception) { raw }
 }
 
