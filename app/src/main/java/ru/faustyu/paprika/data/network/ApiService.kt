@@ -276,7 +276,8 @@ data class UpdateProfileRequest(
     val username: String,
     val bio: String? = null,
     val first_name: String? = null,
-    val last_name: String? = null
+    val last_name: String? = null,
+    val birthday: String? = null // format: "YYYY-MM-DD" or null/empty to clear
 )
 
 data class AddMemberRequest(
@@ -307,7 +308,8 @@ data class UserPublic(
     val first_name: String? = null,
     val last_name: String? = null,
     val is_online: Boolean = false,
-    val last_seen: Long = 0
+    val last_seen: Long = 0,
+    val birthday: String? = null // format: "YYYY-MM-DD" or null
 )
 
 data class Chat(

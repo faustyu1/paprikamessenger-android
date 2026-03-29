@@ -12,14 +12,12 @@ import androidx.compose.foundation.shape.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.automirrored.filled.*
+import androidx.compose.material.icons.automirrored.filled.ArrowForwardIos
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.res.stringResource
-import ru.faustyu.paprika.R
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
@@ -29,17 +27,15 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import kotlinx.coroutines.launch
 import coil.compose.AsyncImage
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
+import java.util.Calendar
 
 class ProfileViewModel : ViewModel() {
     var username by mutableStateOf("")
     var firstName by mutableStateOf("")
     var lastName by mutableStateOf("")
     var bio by mutableStateOf("")
-    var avatarUrl by mutableStateOf<String?>(null) // Remote URL
-    
-    // For local preview before upload, if we want immediate feedback, but simpler to upload on save or separate.
-    // Let's keep it simple: Select -> URI, Save -> Upload Image -> Update Profile.
-    
+    var birthday by mutableStateOf("") // "YYYY-MM-DD" or ""
+    var avatarUrl by mutableStateOf<String?>(null)
     var isLoading by mutableStateOf(false)
 
     init {
@@ -57,16 +53,11 @@ class ProfileViewModel : ViewModel() {
                         firstName = user.first_name ?: ""
                         lastName = user.last_name ?: ""
                         bio = user.bio ?: ""
-                        
-                        // Construct full URL if needed
+                        birthday = user.birthday ?: ""
                         if (!user.avatar.isNullOrBlank()) {
                             val baseUrl = ru.faustyu.paprika.data.network.NetworkModule.baseUrl.removeSuffix("/")
-                             // If it starts with http, use it, else prepend base
-                             if (user.avatar.startsWith("http")) {
-                                 avatarUrl = user.avatar
-                             } else {
-                                 avatarUrl = "$baseUrl${user.avatar}"
-                             }
+                            avatarUrl = if (user.avatar.startsWith("http")) user.avatar
+                                        else "$baseUrl${user.avatar}"
                         } else {
                             avatarUrl = null
                         }
@@ -80,39 +71,25 @@ class ProfileViewModel : ViewModel() {
         }
     }
 
-    fun saveProfile(newUsername: String, newFirstName: String, newLastName: String, newBio: String, newAvatarUri: Uri?) {
+    fun saveProfile(newUsername: String, newFirstName: String, newLastName: String, newBio: String, newBirthday: String) {
         viewModelScope.launch {
             isLoading = true
             try {
-                // 1. Upload Avatar if Changed (not null)
-                if (newAvatarUri != null) {
-                   // Need ContentResolver to get bytes or file
-                   // For brevity using a helper or assuming context access via separate util or passed in.
-                   // Since ViewModel doesn't have easy context, we might require the UI to pass a MultipartBody.Part or file.
-                   // Let's do a workaround: Use a repo or util that has context, OR just do it cleanly.
-                   // Ideally: saveProfile(..., avatarPart: MultipartBody.Part?)
-                }
-                
-                // Since we can't easily get File from Uri inside ViewModel without context,
-                // we will skip the "how to get file" implementation detail here and assume we update text fields first.
-                // *To fix the user request properly regarding avatar:*
-                // The user says "when I upload avatar... it doesn't update". 
-                // We'll focus on text fields first and handle avatar if provided (requires context).
-                
                 val request = ru.faustyu.paprika.data.network.UpdateProfileRequest(
                     username = newUsername,
                     first_name = newFirstName,
                     last_name = newLastName,
-                    bio = newBio
+                    bio = newBio,
+                    birthday = newBirthday.ifBlank { null }
                 )
                 val response = ru.faustyu.paprika.data.network.NetworkModule.api.updateProfile(request)
                 if (response.isSuccessful) {
-                    val user = response.body()
-                    user?.let {
+                    response.body()?.let {
                         username = it.username
                         firstName = it.first_name ?: ""
                         lastName = it.last_name ?: ""
                         bio = it.bio ?: ""
+                        birthday = it.birthday ?: ""
                     }
                 }
             } catch (e: Exception) {
@@ -122,39 +99,50 @@ class ProfileViewModel : ViewModel() {
             }
         }
     }
-    
-    // Quick helper for avatar upload using Context from Composable
+
     fun uploadAvatar(context: android.content.Context, uri: Uri) {
-         viewModelScope.launch {
-             isLoading = true
-             try {
-                 val inputStream = context.contentResolver.openInputStream(uri)
-                 val bytes = inputStream?.readBytes()
-                 inputStream?.close()
-                 
-                 if (bytes != null) {
-                     val mediaType = "image/*".toMediaTypeOrNull()
-                     val requestFile = okhttp3.RequestBody.create(mediaType, bytes)
-                     val body = okhttp3.MultipartBody.Part.createFormData("avatar", "avatar.jpg", requestFile)
-                     
-                     val response = ru.faustyu.paprika.data.network.NetworkModule.api.uploadAvatar(body)
-                     if (response.isSuccessful) {
-                         val user = response.body()
-                         // Force URL refreshing by appending timestamp
-                         if (user?.avatar != null) {
-                             val baseUrl = ru.faustyu.paprika.data.network.NetworkModule.baseUrl.removeSuffix("/")
-                             val rawUrl = if (user.avatar.startsWith("http")) user.avatar else "$baseUrl${user.avatar}"
-                             avatarUrl = "$rawUrl?t=${System.currentTimeMillis()}"
-                         }
-                     }
-                 }
-             } catch (e: Exception) {
+        viewModelScope.launch {
+            isLoading = true
+            try {
+                val inputStream = context.contentResolver.openInputStream(uri)
+                val bytes = inputStream?.readBytes()
+                inputStream?.close()
+                if (bytes != null) {
+                    val mediaType = "image/*".toMediaTypeOrNull()
+                    val requestFile = okhttp3.RequestBody.create(mediaType, bytes)
+                    val body = okhttp3.MultipartBody.Part.createFormData("avatar", "avatar.jpg", requestFile)
+                    val response = ru.faustyu.paprika.data.network.NetworkModule.api.uploadAvatar(body)
+                    if (response.isSuccessful) {
+                        val user = response.body()
+                        if (user?.avatar != null) {
+                            val baseUrl = ru.faustyu.paprika.data.network.NetworkModule.baseUrl.removeSuffix("/")
+                            val rawUrl = if (user.avatar.startsWith("http")) user.avatar else "$baseUrl${user.avatar}"
+                            avatarUrl = "$rawUrl?t=${System.currentTimeMillis()}"
+                        }
+                    }
+                }
+            } catch (e: Exception) {
                 e.printStackTrace()
-             } finally {
-                 isLoading = false
-             }
-         }
+            } finally {
+                isLoading = false
+            }
+        }
     }
+}
+
+/** Format "YYYY-MM-DD" → "12 May" or "12 May 1998" */
+fun formatBirthday(raw: String, showYear: Boolean = true): String {
+    if (raw.isBlank()) return ""
+    return try {
+        val parts = raw.split("-")
+        if (parts.size < 3) return raw
+        val year = parts[0].toInt()
+        val month = parts[1].toInt()
+        val day = parts[2].toInt()
+        val monthNames = listOf("Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec")
+        val monthName = monthNames.getOrElse(month - 1) { month.toString() }
+        if (showYear) "$day $monthName $year" else "$day $monthName"
+    } catch (e: Exception) { raw }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -166,17 +154,48 @@ fun ProfileScreen(
     viewModel: ProfileViewModel = viewModel()
 ) {
     val context = LocalContext.current
-    
-    // Local state for editing - synced with ViewModel
+
     var tempUsername by remember(viewModel.username) { mutableStateOf(viewModel.username) }
     var tempFirstName by remember(viewModel.firstName) { mutableStateOf(viewModel.firstName) }
     var tempLastName by remember(viewModel.lastName) { mutableStateOf(viewModel.lastName) }
     var tempBio by remember(viewModel.bio) { mutableStateOf(viewModel.bio) }
+    var tempBirthday by remember(viewModel.birthday) { mutableStateOf(viewModel.birthday) }
+    var showBirthdayPicker by remember { mutableStateOf(false) }
 
     val launcher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
     ) { uri: Uri? ->
         uri?.let { viewModel.uploadAvatar(context, it) }
+    }
+
+    // Android DatePickerDialog via effect
+    if (showBirthdayPicker) {
+        val cal = Calendar.getInstance()
+        if (tempBirthday.isNotBlank()) {
+            runCatching {
+                val parts = tempBirthday.split("-")
+                cal.set(Calendar.YEAR, parts[0].toInt())
+                cal.set(Calendar.MONTH, parts[1].toInt() - 1)
+                cal.set(Calendar.DAY_OF_MONTH, parts[2].toInt())
+            }
+        }
+        val datePicker = android.app.DatePickerDialog(
+            context,
+            { _, year, month, day ->
+                tempBirthday = "%04d-%02d-%02d".format(year, month + 1, day)
+                showBirthdayPicker = false
+            },
+            cal.get(Calendar.YEAR),
+            cal.get(Calendar.MONTH),
+            cal.get(Calendar.DAY_OF_MONTH)
+        )
+        datePicker.setOnDismissListener { showBirthdayPicker = false }
+        // Max date = today (can't be born in future)
+        datePicker.datePicker.maxDate = System.currentTimeMillis()
+        DisposableEffect(Unit) {
+            datePicker.show()
+            onDispose { datePicker.dismiss() }
+        }
     }
 
     Scaffold(
@@ -190,8 +209,8 @@ fun ProfileScreen(
                 },
                 actions = {
                     if (!viewModel.isLoading) {
-                        TextButton(onClick = { 
-                            viewModel.saveProfile(tempUsername, tempFirstName, tempLastName, tempBio, null) 
+                        TextButton(onClick = {
+                            viewModel.saveProfile(tempUsername, tempFirstName, tempLastName, tempBio, tempBirthday)
                         }) {
                             Text("Done", fontWeight = androidx.compose.ui.text.font.FontWeight.Bold)
                         }
@@ -209,26 +228,20 @@ fun ProfileScreen(
                 .verticalScroll(rememberScrollState())
                 .padding(bottom = 32.dp)
         ) {
-            // Avatar Section
+            // Avatar
             Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 24.dp),
+                modifier = Modifier.fillMaxWidth().padding(vertical = 24.dp),
                 contentAlignment = Alignment.Center
             ) {
                 Box(
-                    modifier = Modifier
-                        .size(100.dp)
-                        .clickable { launcher.launch("image/*") },
+                    modifier = Modifier.size(100.dp).clickable { launcher.launch("image/*") },
                     contentAlignment = Alignment.Center
                 ) {
                     if (!viewModel.avatarUrl.isNullOrBlank()) {
                         AsyncImage(
                             model = viewModel.avatarUrl,
                             contentDescription = "Avatar",
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .clip(CircleShape),
+                            modifier = Modifier.fillMaxSize().clip(CircleShape),
                             contentScale = ContentScale.Crop
                         )
                     } else {
@@ -240,40 +253,23 @@ fun ProfileScreen(
                             Box(contentAlignment = Alignment.Center) {
                                 val initial = (tempFirstName.takeIf { it.isNotBlank() } ?: tempUsername).take(1).uppercase()
                                 if (initial.isNotEmpty()) {
-                                    Text(
-                                        text = initial,
-                                        style = MaterialTheme.typography.displayMedium,
-                                        color = MaterialTheme.colorScheme.onPrimary
-                                    )
+                                    Text(text = initial, style = MaterialTheme.typography.displayMedium, color = MaterialTheme.colorScheme.onPrimary)
                                 } else {
-                                    Icon(
-                                        imageVector = Icons.Default.Person,
-                                        contentDescription = null,
-                                        modifier = Modifier.fillMaxSize(0.5f),
-                                        tint = MaterialTheme.colorScheme.onPrimary
-                                    )
+                                    Icon(Icons.Default.Person, contentDescription = null, modifier = Modifier.fillMaxSize(0.5f), tint = MaterialTheme.colorScheme.onPrimary)
                                 }
                             }
                         }
                     }
                     Box(
-                        modifier = Modifier
-                            .align(Alignment.BottomEnd)
-                            .size(28.dp)
-                            .background(MaterialTheme.colorScheme.primary, CircleShape)
-                            .padding(6.dp)
+                        modifier = Modifier.align(Alignment.BottomEnd).size(28.dp)
+                            .background(MaterialTheme.colorScheme.primary, CircleShape).padding(6.dp)
                     ) {
-                        Icon(
-                            Icons.Default.Edit,
-                            contentDescription = "Edit Avatar",
-                            modifier = Modifier.fillMaxSize(),
-                            tint = MaterialTheme.colorScheme.onPrimary
-                        )
+                        Icon(Icons.Default.Edit, contentDescription = "Edit Avatar", modifier = Modifier.fillMaxSize(), tint = MaterialTheme.colorScheme.onPrimary)
                     }
                 }
             }
 
-            // Section: Your Info
+            // Your Info (username + birthday)
             ProfileSectionHeader(text = "Your Info")
             Card(
                 modifier = Modifier.padding(horizontal = 16.dp),
@@ -290,15 +286,36 @@ fun ProfileScreen(
                         modifier = Modifier.padding(start = 56.dp),
                         color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.1f)
                     )
-                    AccountInfoRow(
-                        icon = Icons.Default.Cake,
-                        title = "Jan 10 (TODO)",
-                        subtitle = "Birthday"
-                    )
+                    // Birthday row — clickable to open picker
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { showBirthdayPicker = true }
+                            .padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(Icons.Default.Cake, contentDescription = null, modifier = Modifier.size(24.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Spacer(modifier = Modifier.width(16.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = if (tempBirthday.isNotBlank()) formatBirthday(tempBirthday) else "Set Birthday",
+                                style = MaterialTheme.typography.bodyLarge,
+                                color = if (tempBirthday.isNotBlank()) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                            )
+                            Text(text = "Birthday", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                        if (tempBirthday.isNotBlank()) {
+                            IconButton(onClick = { tempBirthday = "" }, modifier = Modifier.size(32.dp)) {
+                                Icon(Icons.Default.Close, contentDescription = "Clear", modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                        } else {
+                            Icon(Icons.AutoMirrored.Filled.ArrowForwardIos, contentDescription = null, modifier = Modifier.size(14.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f))
+                        }
+                    }
                 }
             }
             Text(
-                text = "Choose who can see your birthday in Settings.",
+                text = "Choose who can see your birthday in Privacy & Security settings.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
                 modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp)
@@ -306,7 +323,7 @@ fun ProfileScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Section: Your name
+            // Your name
             ProfileSectionHeader(text = "Your name")
             Card(
                 modifier = Modifier.padding(horizontal = 16.dp),
@@ -314,25 +331,17 @@ fun ProfileScreen(
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
-                    BasicEditField(
-                        value = tempFirstName,
-                        onValueChange = { tempFirstName = it },
-                        placeholder = "First Name"
-                    )
+                    BasicEditField(value = tempFirstName, onValueChange = { tempFirstName = it }, placeholder = "First Name")
                     Spacer(modifier = Modifier.height(12.dp))
                     HorizontalDivider(color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.1f))
                     Spacer(modifier = Modifier.height(12.dp))
-                    BasicEditField(
-                        value = tempLastName,
-                        onValueChange = { tempLastName = it },
-                        placeholder = "Last Name (Optional)"
-                    )
+                    BasicEditField(value = tempLastName, onValueChange = { tempLastName = it }, placeholder = "Last Name (Optional)")
                 }
             }
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Section: Your bio
+            // Your bio
             ProfileSectionHeader(text = "Your bio")
             Card(
                 modifier = Modifier.padding(horizontal = 16.dp),
@@ -340,16 +349,11 @@ fun ProfileScreen(
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
-                    BasicEditField(
-                        value = tempBio,
-                        onValueChange = { tempBio = it },
-                        placeholder = "A few lines about yourself...",
-                        singleLine = false
-                    )
+                    BasicEditField(value = tempBio, onValueChange = { tempBio = it }, placeholder = "A few lines about yourself...", singleLine = false)
                 }
             }
             Text(
-                text = "You can add a few lines about yourself. Choose who can see your bio in Settings.",
+                text = "You can add a few lines about yourself. Choose who can see your bio in Privacy & Security settings.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
                 modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp)
@@ -357,7 +361,6 @@ fun ProfileScreen(
 
             Spacer(modifier = Modifier.height(24.dp))
 
-            // Other buttons
             TextButton(
                 onClick = onLogout,
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
@@ -383,9 +386,7 @@ fun ProfileSectionHeader(text: String) {
 @Composable
 fun AccountInfoRow(icon: androidx.compose.ui.graphics.vector.ImageVector, title: String, subtitle: String) {
     Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(16.dp),
+        modifier = Modifier.fillMaxWidth().padding(16.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Icon(icon, contentDescription = null, modifier = Modifier.size(24.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)

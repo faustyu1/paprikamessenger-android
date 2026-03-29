@@ -79,6 +79,8 @@ class UserProfileViewModel(application: android.app.Application) : androidx.life
                 if (response.isSuccessful) {
                     val body = response.body()
                     if (body != null) {
+                        // Update state directly (with birthday from network)
+                        user = body
                         // Update Cache
                         userDao.insertUser(ru.faustyu.paprika.data.db.UserEntity(
                             id = body.id,
@@ -286,11 +288,14 @@ fun UserProfileScreen(
                             )
                             HorizontalDivider(color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.1f), modifier = Modifier.padding(horizontal = 16.dp))
 
-                            InfoRow(
-                                title = "TODO",
-                                subtitle = "Birthday",
-                                trailingIcon = null
-                            )
+                            if (!user.birthday.isNullOrBlank()) {
+                                HorizontalDivider(color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.1f), modifier = Modifier.padding(horizontal = 16.dp))
+                                InfoRow(
+                                    title = formatBirthday(user.birthday, showYear = false),
+                                    subtitle = "Birthday",
+                                    trailingIcon = null
+                                )
+                            }
                         }
                     }
                     

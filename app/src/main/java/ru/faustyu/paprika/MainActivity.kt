@@ -44,6 +44,9 @@ import ru.faustyu.paprika.ui.chat.VideoCircleScreen
 import ru.faustyu.paprika.ui.groups.GroupInfoScreen
 import ru.faustyu.paprika.ui.settings.SessionsScreen
 import ru.faustyu.paprika.ui.settings.SettingsScreen
+import ru.faustyu.paprika.ui.settings.ChatSettingsScreen
+import ru.faustyu.paprika.ui.settings.NotificationsSettingsScreen
+import ru.faustyu.paprika.ui.settings.PrivacySettingsScreen
 import ru.faustyu.paprika.ui.chat.MediaGalleryScreen
 import ru.faustyu.paprika.ui.theme.PaprikaTheme
 import ru.faustyu.paprika.util.AppNotificationHelper
@@ -283,12 +286,30 @@ class MainActivity : androidx.appcompat.app.AppCompatActivity() {
                         composable("settings") {
                             SettingsScreen(
                                 onBack = { navController.popBackStack() },
-                                onSessionsClick = { navController.navigate("sessions") }
+                                onSessionsClick = { navController.navigate("sessions") },
+                                onChatSettingsClick = { navController.navigate("chat_settings") },
+                                onNotificationsClick = { navController.navigate("notifications_settings") },
+                                onPrivacyClick = { navController.navigate("privacy_settings") }
                             )
                         }
 
                         composable("sessions") {
                             SessionsScreen(onBack = { navController.popBackStack() })
+                        }
+
+                        composable("chat_settings") {
+                            ChatSettingsScreen(onBack = { navController.popBackStack() })
+                        }
+
+                        composable("notifications_settings") {
+                            NotificationsSettingsScreen(onBack = { navController.popBackStack() })
+                        }
+
+                        composable("privacy_settings") {
+                            PrivacySettingsScreen(
+                                onBack = { navController.popBackStack() },
+                                onSessionsClick = { navController.navigate("sessions") }
+                            )
                         }
 
                         composable("media_gallery/{chatId}") { backStackEntry ->
