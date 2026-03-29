@@ -27,7 +27,6 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import kotlinx.coroutines.launch
 import coil.compose.AsyncImage
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
-import java.util.Calendar
 
 class ProfileViewModel : ViewModel() {
     var username by mutableStateOf("")
@@ -168,34 +167,16 @@ fun ProfileScreen(
         uri?.let { viewModel.uploadAvatar(context, it) }
     }
 
-    // Android DatePickerDialog via effect
+    // Custom Compose wheel date picker
     if (showBirthdayPicker) {
-        val cal = Calendar.getInstance()
-        if (tempBirthday.isNotBlank()) {
-            runCatching {
-                val parts = tempBirthday.split("-")
-                cal.set(Calendar.YEAR, parts[0].toInt())
-                cal.set(Calendar.MONTH, parts[1].toInt() - 1)
-                cal.set(Calendar.DAY_OF_MONTH, parts[2].toInt())
-            }
-        }
-        val datePicker = android.app.DatePickerDialog(
-            context,
-            { _, year, month, day ->
-                tempBirthday = "%04d-%02d-%02d".format(year, month + 1, day)
+        DateWheelPickerDialog(
+            initialDate = tempBirthday,
+            onDateSelected = { date ->
+                tempBirthday = date
                 showBirthdayPicker = false
             },
-            cal.get(Calendar.YEAR),
-            cal.get(Calendar.MONTH),
-            cal.get(Calendar.DAY_OF_MONTH)
+            onDismiss = { showBirthdayPicker = false }
         )
-        datePicker.setOnDismissListener { showBirthdayPicker = false }
-        // Max date = today (can't be born in future)
-        datePicker.datePicker.maxDate = System.currentTimeMillis()
-        DisposableEffect(Unit) {
-            datePicker.show()
-            onDispose { datePicker.dismiss() }
-        }
     }
 
     Scaffold(
