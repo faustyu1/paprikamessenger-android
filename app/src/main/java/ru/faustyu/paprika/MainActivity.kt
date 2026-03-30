@@ -18,9 +18,18 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Chat
+import androidx.compose.material.icons.filled.AccountCircle
+import androidx.compose.material.icons.filled.People
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -33,6 +42,7 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
+import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import ru.faustyu.paprika.data.PrefsManager
 import ru.faustyu.paprika.data.network.AppWebSocketManager
@@ -214,6 +224,12 @@ class MainActivity : androidx.appcompat.app.AppCompatActivity() {
                     }
 
                     val navController = rememberNavController()
+                    val navBackStackEntry by navController.currentBackStackEntryAsState()
+                    val currentRoute = navBackStackEntry?.destination?.route
+
+                    // Routes that show the bottom navigation bar
+                    val bottomNavRoutes = setOf("chat_list", "contacts", "settings", "my_profile")
+                    val showBottomNav = currentRoute in bottomNavRoutes
 
                     // Navigate based on call state
                     LaunchedEffect(callState) {
@@ -240,7 +256,39 @@ class MainActivity : androidx.appcompat.app.AppCompatActivity() {
                         }
                     }
 
-                    NavHost(navController = navController, startDestination = startDestination) {
+                    Scaffold(
+                        bottomBar = {
+                            if (showBottomNav) {
+                                NavigationBar {
+                                    NavigationBarItem(
+                                        selected = currentRoute == "chat_list",
+                                        onClick = { navController.navigate("chat_list") { launchSingleTop = true; popUpTo("chat_list") { inclusive = false } } },
+                                        icon = { Icon(Icons.AutoMirrored.Filled.Chat, contentDescription = null) },
+                                        label = { Text("Chats") }
+                                    )
+                                    NavigationBarItem(
+                                        selected = currentRoute == "contacts",
+                                        onClick = { navController.navigate("contacts") { launchSingleTop = true } },
+                                        icon = { Icon(Icons.Default.People, contentDescription = null) },
+                                        label = { Text("Contacts") }
+                                    )
+                                    NavigationBarItem(
+                                        selected = currentRoute == "settings",
+                                        onClick = { navController.navigate("settings") { launchSingleTop = true } },
+                                        icon = { Icon(Icons.Default.Settings, contentDescription = null) },
+                                        label = { Text("Settings") }
+                                    )
+                                    NavigationBarItem(
+                                        selected = currentRoute == "my_profile",
+                                        onClick = { navController.navigate("my_profile") { launchSingleTop = true } },
+                                        icon = { Icon(Icons.Default.AccountCircle, contentDescription = null) },
+                                        label = { Text("Profile") }
+                                    )
+                                }
+                            }
+                        }
+                    ) { innerPadding ->
+                    NavHost(modifier = Modifier.padding(innerPadding), navController = navController, startDestination = startDestination) {
                         composable("auth") {
                             AuthScreen(
                                 onLoginSuccess = { token, username ->
@@ -326,7 +374,32 @@ class MainActivity : androidx.appcompat.app.AppCompatActivity() {
 
                         composable("data_storage") {
                             ru.faustyu.paprika.ui.settings.DataAndStorageScreen(
+                                onBack = { navController.popBackStack() },
+                                onStorageClick = { navController.navigate("storage_usage") },
+                                onDataUsageClick = { navController.navigate("data_usage") }
+                            )
+                        }
+
+                        composable("storage_usage") {
+                            ru.faustyu.paprika.ui.settings.StorageUsageScreen(
                                 onBack = { navController.popBackStack() }
+                            )
+                        }
+
+                        composable("data_usage") {
+                            ru.faustyu.paprika.ui.settings.DataUsageScreen(
+                                onBack = { navController.popBackStack() }
+                            )
+                        }
+
+                        composable("contacts") {
+                            ru.faustyu.paprika.ui.contacts.ContactsScreen()
+                        }
+
+                        composable("my_profile") {
+                            ru.faustyu.paprika.ui.profile.MyProfileScreen(
+                                onEditClick = { navController.navigate("profile") },
+                                onSettingsClick = { navController.navigate("settings") }
                             )
                         }
 
@@ -482,6 +555,7 @@ class MainActivity : androidx.appcompat.app.AppCompatActivity() {
                             }
                         }
                     }
+                    } // end Scaffold content
                 }
             }
         }
