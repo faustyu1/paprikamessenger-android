@@ -17,6 +17,7 @@ import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.NotificationsOff
 import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -37,6 +38,7 @@ fun ChatListScreen(
     onSearchClick: () -> Unit,
     onCreateGroupClick: () -> Unit,
     onProfileClick: () -> Unit,
+    onSettingsClick: () -> Unit = {},
     viewModel: ChatListViewModel = androidx.lifecycle.viewmodel.compose.viewModel(),
     onUrlChanged: (String) -> Unit
 ) {
@@ -128,6 +130,9 @@ fun ChatListScreen(
                 actions = {
                     IconButton(onClick = onSearchClick) {
                         Icon(Icons.Filled.Search, contentDescription = stringResource(R.string.chatlist_search))
+                    }
+                    IconButton(onClick = onSettingsClick) {
+                        Icon(Icons.Filled.Settings, contentDescription = "Settings")
                     }
                 }
             )

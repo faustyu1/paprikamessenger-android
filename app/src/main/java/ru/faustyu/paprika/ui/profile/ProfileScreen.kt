@@ -190,6 +190,9 @@ fun ProfileScreen(
                     }
                 },
                 actions = {
+                    IconButton(onClick = onSettingsClick) {
+                        Icon(Icons.Default.Settings, contentDescription = "Settings")
+                    }
                     if (!viewModel.isLoading) {
                         TextButton(onClick = {
                             viewModel.saveProfile(tempUsername, tempFirstName, tempLastName, tempBio, tempBirthday)

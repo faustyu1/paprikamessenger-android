@@ -270,6 +270,7 @@ class MainActivity : androidx.appcompat.app.AppCompatActivity() {
                                 onSearchClick = { navController.navigate("search") },
                                 onCreateGroupClick = { navController.navigate("create_group") },
                                 onProfileClick = { navController.navigate("profile") },
+                                onSettingsClick = { navController.navigate("settings") },
                                 onUrlChanged = { newUrl ->
                                     prefs.backendUrl = newUrl
                                     NetworkModule.setCustomUrl(newUrl)
