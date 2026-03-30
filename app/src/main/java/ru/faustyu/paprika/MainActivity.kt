@@ -88,6 +88,7 @@ class MainActivity : androidx.appcompat.app.AppCompatActivity() {
         val prefs = PrefsManager(this)
         prefs.backendUrl?.let { NetworkModule.setCustomUrl(it) }
         AppNotificationHelper.init(this)
+        prefs.computePowerSaving(this)
 
         // Silent token refresh: when Authenticator gets a new token, persist it
         NetworkModule.onTokenRefreshed = { newToken ->
@@ -297,7 +298,9 @@ class MainActivity : androidx.appcompat.app.AppCompatActivity() {
                                 onSessionsClick = { navController.navigate("sessions") },
                                 onChatSettingsClick = { navController.navigate("chat_settings") },
                                 onNotificationsClick = { navController.navigate("notifications_settings") },
-                                onPrivacyClick = { navController.navigate("privacy_settings") }
+                                onPrivacyClick = { navController.navigate("privacy_settings") },
+                                onDataStorageClick = { navController.navigate("data_storage") },
+                                onPowerSavingClick = { navController.navigate("power_saving") }
                             )
                         }
 
@@ -317,6 +320,18 @@ class MainActivity : androidx.appcompat.app.AppCompatActivity() {
                             PrivacySettingsScreen(
                                 onBack = { navController.popBackStack() },
                                 onSessionsClick = { navController.navigate("sessions") }
+                            )
+                        }
+
+                        composable("data_storage") {
+                            ru.faustyu.paprika.ui.settings.DataAndStorageScreen(
+                                onBack = { navController.popBackStack() }
+                            )
+                        }
+
+                        composable("power_saving") {
+                            ru.faustyu.paprika.ui.settings.PowerSavingScreen(
+                                onBack = { navController.popBackStack() }
                             )
                         }
 

@@ -24,7 +24,9 @@ fun SettingsScreen(
     onSessionsClick: () -> Unit,
     onChatSettingsClick: () -> Unit = {},
     onNotificationsClick: () -> Unit = {},
-    onPrivacyClick: () -> Unit = {}
+    onPrivacyClick: () -> Unit = {},
+    onDataStorageClick: () -> Unit = {},
+    onPowerSavingClick: () -> Unit = {}
 ) {
     Scaffold(
         topBar = {
@@ -83,6 +85,30 @@ fun SettingsScreen(
                         title = "Devices",
                         subtitle = "Manage connected devices",
                         onClick = onSessionsClick
+                    )
+                    SettingsDivider()
+                    SettingsNavItem(
+                        icon = Icons.Default.Storage,
+                        iconTint = androidx.compose.ui.graphics.Color(0xFF2196F3),
+                        title = "Data and Storage",
+                        subtitle = "Media download settings",
+                        onClick = onDataStorageClick
+                    )
+                    SettingsDivider()
+                    SettingsNavItem(
+                        icon = Icons.Default.BatteryAlert,
+                        iconTint = androidx.compose.ui.graphics.Color(0xFFFF9800),
+                        title = "Power Saving",
+                        subtitle = "Reduce power usage on low charge",
+                        onClick = onPowerSavingClick
+                    )
+                    SettingsDivider()
+                    SettingsNavItem(
+                        icon = Icons.Default.Language,
+                        iconTint = androidx.compose.ui.graphics.Color(0xFF9C27B0),
+                        title = "Language",
+                        subtitle = "English",
+                        onClick = {}
                     )
                 }
             }
