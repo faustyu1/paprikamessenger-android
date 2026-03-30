@@ -16,7 +16,7 @@ object AppWebSocketManager {
     private val listeners = ConcurrentHashMap<String, (Map<String, Any?>) -> Unit>()
     private val mapType = object : TypeToken<Map<String, Any?>>() {}.type
 
-    var onNewMessage: (() -> Unit)? = null
+    var onNewMessage: ((Long?) -> Unit)? = null
 
     fun connect(token: String, baseUrl: String) {
         if (webSocket != null) return
@@ -38,7 +38,8 @@ object AppWebSocketManager {
                     val type = msg["type"] as? String
                     val event = msg["event"] as? String
                     if (type == "new_message" || event == "message:new") {
-                        onNewMessage?.invoke()
+                        val senderId = (msg["sender_id"] as? Double)?.toLong()
+                        onNewMessage?.invoke(senderId)
                     }
                     listeners.values.forEach { it(msg) }
                 } catch (e: Exception) {

@@ -8,8 +8,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -18,6 +16,11 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.automirrored.filled.*
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.foundation.shape.RoundedCornerShape
 import ru.faustyu.paprika.R
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.Job
@@ -69,9 +72,6 @@ class SearchViewModel(application: android.app.Application) : androidx.lifecycle
             val response = NetworkModule.api.searchUsers(q)
             if (response.isSuccessful) {
                 users = response.body() ?: emptyList()
-                if (users.isNotEmpty()) {
-                    saveToHistory(q)
-                }
             }
         } catch (e: Exception) {
             // Handle error
@@ -80,9 +80,11 @@ class SearchViewModel(application: android.app.Application) : androidx.lifecycle
         }
     }
 
-    private fun saveToHistory(q: String) {
+    fun saveToHistory(user: ru.faustyu.paprika.data.network.UserPublic) {
+        val name = user.first_name?.takeIf { it.isNotBlank() }
+            ?.let { "$it ${user.last_name ?: ""}".trim() } ?: user.username
         viewModelScope.launch {
-            historyDao.insert(SearchHistoryEntity(query = q, timestamp = System.currentTimeMillis()))
+            historyDao.insert(SearchHistoryEntity(query = name, timestamp = System.currentTimeMillis()))
         }
     }
 
@@ -107,11 +109,11 @@ class SearchViewModel(application: android.app.Application) : androidx.lifecycle
                 if (response.isSuccessful) {
                     val chat = response.body()
                     chat?.let {
+                        saveToHistory(user)  // save only on actual open
                         onChatReady(it.id.toString())
                     }
                 }
             } catch (e: Exception) {
-                // error
                 e.printStackTrace()
             } finally {
                 isLoading = false
@@ -125,35 +127,22 @@ class SearchViewModel(application: android.app.Application) : androidx.lifecycle
 fun SearchScreen(
     onBack: () -> Unit,
     onChatJoined: (String) -> Unit,
+    onNewGroupClick: () -> Unit,
+    onNewChannelClick: () -> Unit,
     viewModel: SearchViewModel = androidx.lifecycle.viewmodel.compose.viewModel()
 ) {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { 
-                    TextField(
-                        value = viewModel.query,
-                        onValueChange = viewModel::onQueryChange,
-                        placeholder = { Text(stringResource(R.string.search_placeholder)) },
-                        colors = TextFieldDefaults.colors(
-                            focusedContainerColor = MaterialTheme.colorScheme.surface,
-                            unfocusedContainerColor = MaterialTheme.colorScheme.surface,
-                            focusedIndicatorColor = androidx.compose.ui.graphics.Color.Transparent,
-                            unfocusedIndicatorColor = androidx.compose.ui.graphics.Color.Transparent
-                        ),
-                        modifier = Modifier.fillMaxWidth(),
-                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-                        keyboardActions = KeyboardActions(
-                            onSearch = {
-                                viewModel.onQueryChange(viewModel.query) // Force search or just hide keyboard
-                                // default behavior logic
-                            }
-                        )
-                    ) 
-                },
+                title = { Text("New Message") },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.search_back))
+                    }
+                },
+                actions = {
+                    IconButton(onClick = { /* TODO: Sort menu or similar */ }) {
+                        Icon(Icons.AutoMirrored.Filled.Sort, contentDescription = "Sort")
                     }
                 }
             )
@@ -165,6 +154,78 @@ fun SearchScreen(
             }
             
             LazyColumn {
+                // Top Search Bar (Inline now)
+                item {
+                    TextField(
+                        value = viewModel.query,
+                        onValueChange = viewModel::onQueryChange,
+                        placeholder = { Text(stringResource(R.string.search_placeholder)) },
+                        leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+                        colors = TextFieldDefaults.colors(
+                            focusedContainerColor = MaterialTheme.colorScheme.surface,
+                            unfocusedContainerColor = MaterialTheme.colorScheme.surface,
+                            focusedIndicatorColor = androidx.compose.ui.graphics.Color.Transparent,
+                            unfocusedIndicatorColor = androidx.compose.ui.graphics.Color.Transparent
+                        ),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(8.dp),
+                        shape = CircleShape,
+                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search)
+                    )
+                }
+
+                // New Group and Channel Items
+                item {
+                    ListItem(
+                        headlineContent = { Text("New Group", style = MaterialTheme.typography.titleMedium) },
+                        leadingContent = {
+                            Surface(
+                                shape = CircleShape,
+                                color = androidx.compose.ui.graphics.Color(0xFF3390EC),
+                                modifier = Modifier.size(40.dp)
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(Icons.Default.People, contentDescription = null, tint = androidx.compose.ui.graphics.Color.White)
+                                }
+                            }
+                        },
+                        modifier = Modifier.clickable { onNewGroupClick() }
+                    )
+                }
+                item {
+                    ListItem(
+                        headlineContent = { Text("New Channel", style = MaterialTheme.typography.titleMedium) },
+                        leadingContent = {
+                            Surface(
+                                shape = CircleShape,
+                                color = androidx.compose.ui.graphics.Color(0xFF31D84D),
+                                modifier = Modifier.size(40.dp)
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(Icons.Default.Notifications, contentDescription = null, tint = androidx.compose.ui.graphics.Color.White)
+                                }
+                            }
+                        },
+                        modifier = Modifier.clickable { onNewChannelClick() }
+                    )
+                }
+
+                if (viewModel.query.isEmpty()) {
+                    item {
+                        Text(
+                            text = "Sorted by last seen time",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.padding(16.dp)
+                        )
+                    }
+                }
+                
+                if (viewModel.query.isEmpty() && viewModel.history.isNotEmpty()) {
+                    // Search history... (already in the file, we can keep it below the "New Group/Channel" or just remove if we want to follow photo closely)
+                    // Currently I'll keep it as "recent" below the header.
+                }
                 if (viewModel.query.isEmpty() && viewModel.history.isNotEmpty()) {
                     item {
                         Row(
@@ -173,9 +234,9 @@ fun SearchScreen(
                                 .padding(16.dp),
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
-                            Text(stringResource(R.string.search_recent), style = MaterialTheme.typography.titleSmall)
+                            Text("Recent", style = MaterialTheme.typography.titleSmall)
                             Text(
-                                stringResource(R.string.search_clear),
+                                "Clear All",
                                 color = MaterialTheme.colorScheme.primary,
                                 modifier = Modifier.clickable { viewModel.clearHistory() }
                             )
@@ -184,7 +245,21 @@ fun SearchScreen(
                     items(viewModel.history) { item ->
                         ListItem(
                             headlineContent = { Text(item.query) },
-                            leadingContent = { Icon(Icons.Default.Search, contentDescription = null) },
+                            leadingContent = {
+                                Surface(
+                                    shape = CircleShape,
+                                    color = MaterialTheme.colorScheme.secondaryContainer,
+                                    modifier = Modifier.size(40.dp)
+                                ) {
+                                    Box(contentAlignment = Alignment.Center) {
+                                        Text(
+                                            item.query.take(1).uppercase(),
+                                            style = MaterialTheme.typography.titleMedium,
+                                            color = MaterialTheme.colorScheme.onSecondaryContainer
+                                        )
+                                    }
+                                }
+                            },
                             modifier = Modifier.clickable { viewModel.onQueryChange(item.query) }
                         )
                     }
@@ -240,7 +315,7 @@ fun SearchScreen(
                             }
                         }
                     )
-                    Divider()
+                    HorizontalDivider()
                 }
             }
         }

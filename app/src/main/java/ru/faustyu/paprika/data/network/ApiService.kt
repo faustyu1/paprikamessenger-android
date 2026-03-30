@@ -77,7 +77,14 @@ interface ApiService {
     @GET("/users/search")
     suspend fun searchUsers(@Query("q") query: String): Response<List<UserPublic>>
 
+    @GET("/contacts")
+    suspend fun getContacts(): Response<List<ContactEntry>>
 
+    @POST("/contacts")
+    suspend fun addContact(@Body body: AddContactRequest): Response<ContactEntry>
+
+    @DELETE("/contacts/{id}")
+    suspend fun deleteContact(@retrofit2.http.Path("id") userId: Long): Response<Unit>
 
     @POST("/chats")
     suspend fun createChat(@Body request: CreateChatRequest): Response<Chat>
@@ -249,7 +256,7 @@ data class MessageDto(
     val content: String,
     val type: String,
     val status: String,
-    val created_at: String,
+    val created_at: Long,
     val edited_at: Long? = null,
     val reply_to_message_id: Long? = null,
     val reply_to_message: ReplyToDto? = null,
@@ -276,7 +283,8 @@ data class UpdateProfileRequest(
     val username: String,
     val bio: String? = null,
     val first_name: String? = null,
-    val last_name: String? = null
+    val last_name: String? = null,
+    val birthday: String? = null // format: "YYYY-MM-DD" or null/empty to clear
 )
 
 data class AddMemberRequest(
@@ -298,6 +306,20 @@ data class CreateStoryRequest(
     val caption: String
 )
 
+data class ContactEntry(
+    val id: Long,
+    val user_id: Long,
+    val username: String,
+    val first_name: String? = null,
+    val last_name: String? = null,
+    val avatar: String? = null,
+    val is_online: Boolean = false,
+    val last_seen: Long = 0,
+    val bio: String? = null
+)
+
+data class AddContactRequest(val username: String)
+
 data class UserPublic(
     val id: Long,
     val username: String,
@@ -307,7 +329,8 @@ data class UserPublic(
     val first_name: String? = null,
     val last_name: String? = null,
     val is_online: Boolean = false,
-    val last_seen: Long = 0
+    val last_seen: Long = 0,
+    val birthday: String? = null // format: "YYYY-MM-DD" or null
 )
 
 data class Chat(
@@ -412,5 +435,6 @@ data class ChatDto(
     val unread_count: Long = 0,
     val mute_until: Long = 0,
     val is_archived: Boolean = false,
-    val is_pinned: Boolean = false
+    val is_pinned: Boolean = false,
+    val invite_link: String? = null
 )

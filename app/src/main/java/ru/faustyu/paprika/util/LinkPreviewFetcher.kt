@@ -2,7 +2,6 @@ package ru.faustyu.paprika.util
 
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import java.util.concurrent.ConcurrentHashMap
 
 data class LinkPreviewData(
     val url: String,
@@ -12,7 +11,7 @@ data class LinkPreviewData(
 )
 
 object LinkPreviewFetcher {
-    private val cache = ConcurrentHashMap<String, LinkPreviewData?>()
+    private val cache: MutableMap<String, LinkPreviewData?> = java.util.Collections.synchronizedMap(mutableMapOf())
 
     suspend fun fetch(url: String): LinkPreviewData? {
         if (cache.containsKey(url)) return cache[url]

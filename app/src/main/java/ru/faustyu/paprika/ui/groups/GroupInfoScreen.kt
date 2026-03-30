@@ -9,6 +9,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.automirrored.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -51,9 +52,10 @@ class GroupInfoViewModel : ViewModel() {
                 if (chatRes.isSuccessful) {
                     chatRes.body()?.let {
                         title.value = it.title
-                        description.value = it.description
-                        avatar.value = it.avatar
+                        description.value = it.description ?: ""
+                        avatar.value = it.avatar ?: ""
                         ownerId.value = it.owner_id
+                        inviteLink.value = it.invite_link
                     }
                 }
 
@@ -438,6 +440,10 @@ fun GroupInfoScreen(
                             headlineContent = { Text("Пригласительная ссылка", style = MaterialTheme.typography.bodySmall) },
                             supportingContent = { Text(link, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary) },
                             leadingContent = { Icon(Icons.Filled.Link, contentDescription = null) },
+                            modifier = Modifier.clickable {
+                                clipboardManager.setText(AnnotatedString(link))
+                                viewModel.snackbar.value = "Ссылка скопирована"
+                            },
                             trailingContent = {
                                 Row {
                                     IconButton(onClick = {
@@ -475,7 +481,7 @@ fun GroupInfoScreen(
                         headlineContent = { Text("Выйти из группы", color = MaterialTheme.colorScheme.error) },
                         leadingContent = {
                             Icon(
-                                Icons.Filled.ExitToApp,
+                                Icons.AutoMirrored.Filled.ExitToApp,
                                 contentDescription = null,
                                 tint = MaterialTheme.colorScheme.error
                             )

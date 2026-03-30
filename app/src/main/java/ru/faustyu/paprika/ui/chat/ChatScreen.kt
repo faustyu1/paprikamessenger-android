@@ -1,7 +1,5 @@
 package ru.faustyu.paprika.ui.chat
 
-import android.Manifest
-import android.content.pm.PackageManager
 import android.media.MediaPlayer
 import android.net.Uri
 import android.widget.VideoView
@@ -25,6 +23,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.automirrored.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -49,7 +48,6 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
-import androidx.core.content.ContextCompat
 import coil.ImageLoader
 import coil.compose.AsyncImage
 import coil.compose.SubcomposeAsyncImage
@@ -117,9 +115,6 @@ fun ChatScreen(
     var showAddMemberDialog by remember { mutableStateOf(false) }
     var isRecordingVoice by remember { mutableStateOf(false) }
     var recordingDuration by remember { mutableIntStateOf(0) }
-    var showStickerSheet by remember { mutableStateOf(false) }
-    var showGifSheet by remember { mutableStateOf(false) }
-    val stickers = remember { listOf("😀","😂","❤️","👍","🎉","😎","🤔","😢","🔥","✨","💯","🙏","😍","😭","🤣","😊","👀","💪","🎊","🌟") }
 
     val title = viewModel.chatTitle.value
     val subtitle = viewModel.chatSubtitle.value
@@ -237,12 +232,12 @@ fun ChatScreen(
             Column(modifier = Modifier.padding(bottom = 32.dp)) {
                 ListItem(
                     headlineContent = { Text("Ответить") },
-                    leadingContent = { Icon(Icons.Filled.Reply, null) },
+                    leadingContent = { Icon(Icons.AutoMirrored.Filled.Reply, null) },
                     modifier = Modifier.clickable { viewModel.setReply(msg); selectedMessage = null }
                 )
                 ListItem(
                     headlineContent = { Text("Переслать") },
-                    leadingContent = { Icon(Icons.Filled.Forward, null) },
+                    leadingContent = { Icon(Icons.AutoMirrored.Filled.Forward, null) },
                     modifier = Modifier.clickable { showForwardSheet = true; selectedMessage = null }
                 )
                 ListItem(
@@ -349,52 +344,6 @@ fun ChatScreen(
         )
     }
 
-    // GIF picker sheet
-    if (showGifSheet) {
-        GifPickerSheet(
-            onGifSelected = { gifUrl ->
-                viewModel.sendGif(chatId, gifUrl)
-                showGifSheet = false
-            },
-            onDismiss = { showGifSheet = false }
-        )
-    }
-
-    // Sticker picker sheet
-    if (showStickerSheet) {
-        androidx.compose.material3.ModalBottomSheet(
-            onDismissRequest = { showStickerSheet = false }
-        ) {
-            Text(
-                "Стикеры",
-                style = MaterialTheme.typography.titleMedium,
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
-            )
-            androidx.compose.foundation.lazy.grid.LazyVerticalGrid(
-                columns = androidx.compose.foundation.lazy.grid.GridCells.Fixed(5),
-                modifier = Modifier.padding(horizontal = 8.dp).heightIn(max = 300.dp),
-                contentPadding = PaddingValues(bottom = 32.dp)
-            ) {
-                items(stickers.size) { index ->
-                    val sticker = stickers[index]
-                    Box(
-                        modifier = Modifier
-                            .padding(4.dp)
-                            .size(56.dp)
-                            .clip(RoundedCornerShape(8.dp))
-                            .clickable {
-                                viewModel.sendMessage(chatId, sticker)
-                                showStickerSheet = false
-                            },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(sticker, style = MaterialTheme.typography.headlineMedium)
-                    }
-                }
-            }
-        }
-    }
-
     Scaffold(
         snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
@@ -426,17 +375,18 @@ fun ChatScreen(
                                     contentScale = ContentScale.Crop
                                 )
                             } else {
-                                Box(
-                                    modifier = Modifier
-                                        .size(40.dp)
-                                        .background(MaterialTheme.colorScheme.secondaryContainer, CircleShape),
-                                    contentAlignment = Alignment.Center
+                                Surface(
+                                    shape = CircleShape,
+                                    color = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(40.dp)
                                 ) {
-                                    Text(
-                                        title.take(1).uppercase(),
-                                        style = MaterialTheme.typography.titleMedium,
-                                        color = MaterialTheme.colorScheme.onSecondaryContainer
-                                    )
+                                    Box(contentAlignment = Alignment.Center) {
+                                        Text(
+                                            title.take(1).uppercase(),
+                                            style = MaterialTheme.typography.titleMedium,
+                                            color = MaterialTheme.colorScheme.onPrimary
+                                        )
+                                    }
                                 }
                             }
                             Spacer(modifier = Modifier.width(12.dp))
@@ -555,180 +505,96 @@ fun ChatScreen(
                 }
             }
 
-            if (isRecordingVoice) {
-                // Voice recording bar
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 8.dp, vertical = 4.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    IconButton(onClick = {
-                        VoiceRecorder.cancelRecording()
-                        isRecordingVoice = false
-                    }) {
-                        Icon(Icons.Filled.Delete, contentDescription = "Cancel", tint = Color.Red)
-                    }
-                    Box(modifier = Modifier.weight(1f).padding(horizontal = 8.dp)) {
-                        RecordingWaveform()
-                    }
-                    Text(
-                        text = "%02d:%02d".format(recordingDuration / 60, recordingDuration % 60),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = Color.Red
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    IconButton(onClick = {
-                        val path = VoiceRecorder.stopRecording()
-                        isRecordingVoice = false
-                        path?.let { viewModel.sendVoice(chatId, it, context) }
-                    }) {
-                        Icon(Icons.AutoMirrored.Filled.Send, contentDescription = "Send voice")
-                    }
-                }
-            } else if (!canWrite) {
-                // Channel read-only banner
+            if (!canWrite) {
                 Box(
                     modifier = Modifier.fillMaxWidth().padding(12.dp),
-                    contentAlignment = Alignment.Center
+                    contentAlignment = Alignment.Center,
                 ) {
                     Text(
                         "Только администраторы могут писать",
                         style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
             } else {
-                // Normal input bar
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(8.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    // Disappearing timer toggle
-                    val timerSec = viewModel.disappearingTimerSec.value
-                    val timerLabel = when (timerSec) {
-                        3600L -> "1ч"; 86400L -> "1д"; 604800L -> "7д"; 2592000L -> "30д"; else -> null
-                    }
-                    BadgedBox(
-                        badge = { if (timerLabel != null) Badge { Text(timerLabel, style = MaterialTheme.typography.labelSmall) } },
-                        modifier = Modifier.size(40.dp)
-                    ) {
-                        IconButton(onClick = {
-                            viewModel.disappearingTimerSec.value = when (timerSec) {
-                                0L -> 3600L; 3600L -> 86400L; 86400L -> 604800L; 604800L -> 2592000L; else -> 0L
-                            }
-                        }) {
-                            Icon(Icons.Filled.Timer, contentDescription = "Таймер исчезновения", modifier = Modifier.size(20.dp))
+                MessageInputBar(
+                    inputText = inputText,
+                    onInputChange = { inputText = it },
+                    onSend = {
+                        val trimmed = inputText.trim()
+                        if (trimmed.isNotBlank()) {
+                            viewModel.sendMessage(chatId, trimmed)
                         }
-                    }
-
-                    // Attach: image or file
-                    Box {
-                        var showAttachMenu by remember { mutableStateOf(false) }
-                        IconButton(onClick = { showAttachMenu = true }) {
-                            Icon(Icons.Default.Add, contentDescription = "Прикрепить")
-                        }
-                        DropdownMenu(expanded = showAttachMenu, onDismissRequest = { showAttachMenu = false }) {
-                            DropdownMenuItem(
-                                text = { Text("Фото") },
-                                leadingIcon = { Icon(Icons.Filled.Image, null) },
-                                onClick = {
-                                    showAttachMenu = false
-                                    pickMedia.launch(androidx.activity.result.PickVisualMediaRequest(
-                                        androidx.activity.result.contract.ActivityResultContracts.PickVisualMedia.ImageOnly
-                                    ))
-                                }
+                        inputText = ""
+                    },
+                    onPickImage = {
+                        pickMedia.launch(
+                            androidx.activity.result.PickVisualMediaRequest(
+                                androidx.activity.result.contract.ActivityResultContracts.PickVisualMedia.ImageAndVideo
                             )
-                            DropdownMenuItem(
-                                text = { Text("Файл") },
-                                leadingIcon = { Icon(Icons.Filled.InsertDriveFile, null) },
-                                onClick = { showAttachMenu = false; pickFile.launch("*/*") }
-                            )
-                        }
-                    }
-
-                    TextField(
-                        value = inputText,
-                        onValueChange = { inputText = it },
-                        modifier = Modifier.weight(1f),
-                        placeholder = { Text("Сообщение") }
-                    )
-
-                    if (inputText.isNotBlank()) {
-                        IconButton(onClick = {
-                            viewModel.sendMessage(chatId, inputText)
-                            inputText = ""
-                        }) {
-                            Icon(Icons.AutoMirrored.Filled.Send, contentDescription = "Отправить")
-                        }
-                    } else {
-                        IconButton(onClick = {
-                            if (ContextCompat.checkSelfPermission(
-                                    context, Manifest.permission.RECORD_AUDIO
-                                ) == PackageManager.PERMISSION_GRANTED
-                            ) {
-                                VoiceRecorder.startRecording(context)
-                                isRecordingVoice = true
-                            }
-                        }) {
-                            Icon(Icons.Filled.Mic, contentDescription = "Голосовое")
-                        }
-                        IconButton(onClick = onVideoCircleClick) {
-                            Icon(Icons.Filled.RadioButtonChecked, contentDescription = "Видеосообщение")
-                        }
-                        IconButton(onClick = { showStickerSheet = true }) {
-                            Icon(Icons.Filled.EmojiEmotions, contentDescription = "Стикеры")
-                        }
-                        IconButton(onClick = { showGifSheet = true }) {
-                            Text("GIF", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
-                        }
-                    }
-                }
+                        )
+                    },
+                    onPickFile = { pickFile.launch("*/*") },
+                    onVideoCircle = onVideoCircleClick,
+                    isRecording = isRecordingVoice,
+                    recordingDuration = recordingDuration,
+                    onVoiceCancel = {
+                        VoiceRecorder.cancelRecording()
+                        isRecordingVoice = false
+                    },
+                    onVoiceSend = {
+                        val path = VoiceRecorder.stopRecording()
+                        isRecordingVoice = false
+                        path?.let { viewModel.sendVoice(chatId, it, context) }
+                    },
+                    onVoiceStart = { isRecordingVoice = true },
+                    onStickerSend = { viewModel.sendMessage(chatId, it) },
+                    onGifSend = { viewModel.sendGif(chatId, it) },
+                    modifier = Modifier.fillMaxWidth(),
+                )
             }
             } // end Column
         }
     ) { padding ->
-        val displayMessages = if (searchText.isBlank()) viewModel.messages
-            else viewModel.messages.filter { it.content.contains(searchText, ignoreCase = true) }
-
-        val unreadCount = viewModel.initialUnreadCount.value
-        val chatItems = remember(displayMessages, unreadCount) {
-            if (displayMessages.isEmpty()) return@remember emptyList<ChatListItem>()
-            val result = mutableListOf<ChatListItem>()
-            // messages are in reverse order (newest first), so unread separator goes before index = unreadCount
-            val unreadSepIndex = if (unreadCount > 0 && unreadCount < displayMessages.size) unreadCount.toInt() else -1
-            displayMessages.forEachIndexed { index, msg ->
-                result.add(ChatListItem.MessageItem(msg))
-                if (index == unreadSepIndex - 1) {
-                    result.add(ChatListItem.UnreadSeparator)
-                }
-                val msgDate = run {
-                    val inst = java.time.Instant.ofEpochSecond(msg.timestamp)
-                    val today = java.time.LocalDate.now()
-                    val ld = inst.atZone(java.time.ZoneId.systemDefault()).toLocalDate()
-                    when {
-                        ld == today -> "Сегодня"
-                        ld == today.minusDays(1) -> "Вчера"
-                        else -> ld.format(java.time.format.DateTimeFormatter.ofPattern("d MMMM yyyy", java.util.Locale("ru")))
+        val chatItems by remember {
+            derivedStateOf {
+                val unreadCount = viewModel.initialUnreadCount.value
+                val displayMessages = if (searchText.isBlank()) viewModel.messages
+                    else viewModel.messages.filter { it.content.contains(searchText, ignoreCase = true) }
+                if (displayMessages.isEmpty()) return@derivedStateOf emptyList<ChatListItem>()
+                val result = mutableListOf<ChatListItem>()
+                val unreadSepIndex = if (unreadCount > 0 && unreadCount < displayMessages.size) unreadCount.toInt() else -1
+                displayMessages.forEachIndexed { index, msg ->
+                    result.add(ChatListItem.MessageItem(msg))
+                    if (index == unreadSepIndex - 1) {
+                        result.add(ChatListItem.UnreadSeparator)
+                    }
+                    val msgDate = run {
+                        val inst = java.time.Instant.ofEpochSecond(msg.timestamp)
+                        val today = java.time.LocalDate.now()
+                        val ld = inst.atZone(java.time.ZoneId.systemDefault()).toLocalDate()
+                        when {
+                            ld == today -> "Сегодня"
+                            ld == today.minusDays(1) -> "Вчера"
+                            else -> ld.format(java.time.format.DateTimeFormatter.ofPattern("d MMMM yyyy", java.util.Locale("ru")))
+                        }
+                    }
+                    val nextDate = displayMessages.getOrNull(index + 1)?.let { nm ->
+                        val inst = java.time.Instant.ofEpochSecond(nm.timestamp)
+                        val today = java.time.LocalDate.now()
+                        val ld = inst.atZone(java.time.ZoneId.systemDefault()).toLocalDate()
+                        when {
+                            ld == today -> "Сегодня"
+                            ld == today.minusDays(1) -> "Вчера"
+                            else -> ld.format(java.time.format.DateTimeFormatter.ofPattern("d MMMM yyyy", java.util.Locale("ru")))
+                        }
+                    }
+                    if (nextDate == null || nextDate != msgDate) {
+                        result.add(ChatListItem.DateSeparator(msgDate))
                     }
                 }
-                val nextDate = displayMessages.getOrNull(index + 1)?.let { nm ->
-                    val inst = java.time.Instant.ofEpochSecond(nm.timestamp)
-                    val today = java.time.LocalDate.now()
-                    val ld = inst.atZone(java.time.ZoneId.systemDefault()).toLocalDate()
-                    when {
-                        ld == today -> "Сегодня"
-                        ld == today.minusDays(1) -> "Вчера"
-                        else -> ld.format(java.time.format.DateTimeFormatter.ofPattern("d MMMM yyyy", java.util.Locale("ru")))
-                    }
-                }
-                if (nextDate == null || nextDate != msgDate) {
-                    result.add(ChatListItem.DateSeparator(msgDate))
-                }
+                result
             }
-            result
         }
 
         val listState = rememberLazyListState()
@@ -939,7 +805,7 @@ private fun MessageBubble(
                                     verticalAlignment = Alignment.CenterVertically,
                                     modifier = Modifier.widthIn(min = 160.dp, max = 240.dp)
                                 ) {
-                                    Icon(Icons.Filled.InsertDriveFile, contentDescription = null, modifier = Modifier.size(28.dp))
+                                    Icon(Icons.AutoMirrored.Filled.InsertDriveFile, contentDescription = null, modifier = Modifier.size(28.dp))
                                     Spacer(Modifier.width(8.dp))
                                     Text(
                                         message.content.substringAfterLast("/").substringBefore("?"),
@@ -1254,7 +1120,7 @@ private fun LinkPreviewCard(url: String) {
 
 @Composable
 private fun StatusLine(message: Message) {
-    Column(horizontalAlignment = Alignment.End) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
         val timeString = remember(message.timestamp) {
             try {
                 val instant = java.time.Instant.ofEpochSecond(message.timestamp)
@@ -1269,6 +1135,7 @@ private fun StatusLine(message: Message) {
             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
         )
         if (message.isMe) {
+            Spacer(modifier = Modifier.width(4.dp))
             if (message.status == "uploading") {
                 CircularProgressIndicator(modifier = Modifier.size(12.dp), strokeWidth = 2.dp)
             } else {

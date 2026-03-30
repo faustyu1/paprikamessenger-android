@@ -3,13 +3,16 @@ package ru.faustyu.paprika.ui.settings
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowForwardIos
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import ru.faustyu.paprika.data.PrefsManager
@@ -18,151 +21,177 @@ import ru.faustyu.paprika.data.PrefsManager
 @Composable
 fun SettingsScreen(
     onBack: () -> Unit,
-    onSessionsClick: () -> Unit
+    onSessionsClick: () -> Unit,
+    onChatSettingsClick: () -> Unit = {},
+    onNotificationsClick: () -> Unit = {},
+    onPrivacyClick: () -> Unit = {},
+    onDataStorageClick: () -> Unit = {},
+    onPowerSavingClick: () -> Unit = {}
 ) {
-    val context = LocalContext.current
-    val prefs = remember { PrefsManager(context) }
-
-    var darkTheme by remember { mutableStateOf(prefs.darkTheme) }
-    var fontSize by remember { mutableStateOf(prefs.fontSize) }
-    var appLockEnabled by remember { mutableStateOf(prefs.appLockEnabled) }
-    var showPinDialog by remember { mutableStateOf(false) }
-    var pinInput by remember { mutableStateOf("") }
-    var notificationSound by remember { mutableStateOf(prefs.notificationSound) }
-
-    if (showPinDialog) {
-        AlertDialog(
-            onDismissRequest = { showPinDialog = false; pinInput = "" },
-            title = { Text(if (appLockEnabled) "Установить PIN" else "Отключить PIN") },
-            text = {
-                Column {
-                    Text("Введите 4-значный PIN:")
-                    Spacer(Modifier.height(8.dp))
-                    OutlinedTextField(
-                        value = pinInput,
-                        onValueChange = { if (it.length <= 4) pinInput = it },
-                        label = { Text("PIN") },
-                        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
-                            keyboardType = androidx.compose.ui.text.input.KeyboardType.NumberPassword
-                        ),
-                        visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation()
-                    )
-                }
-            },
-            confirmButton = {
-                TextButton(onClick = {
-                    if (pinInput.length == 4) {
-                        prefs.pinHash = pinInput.hashCode().toString()
-                        prefs.appLockEnabled = appLockEnabled
-                        showPinDialog = false
-                        pinInput = ""
-                    }
-                }) { Text("Сохранить") }
-            },
-            dismissButton = {
-                TextButton(onClick = { showPinDialog = false; pinInput = ""; appLockEnabled = !appLockEnabled }) {
-                    Text("Отмена")
-                }
-            }
-        )
-    }
-
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Настройки") },
+                title = { Text("Settings") },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Назад")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                     }
                 }
             )
         }
     ) { padding ->
-        LazyColumn(modifier = Modifier.padding(padding).fillMaxSize()) {
+        LazyColumn(
+            modifier = Modifier.padding(padding).fillMaxSize(),
+            contentPadding = PaddingValues(vertical = 8.dp)
+        ) {
+            // Section 1: Main settings
             item {
-                ListItem(
-                    headlineContent = { Text("Тёмная тема") },
-                    supportingContent = { Text(if (darkTheme) "Включена" else "Выключена") },
-                    leadingContent = { Icon(Icons.Filled.DarkMode, contentDescription = null) },
-                    trailingContent = {
-                        Switch(
-                            checked = darkTheme,
-                            onCheckedChange = {
-                                darkTheme = it
-                                prefs.darkTheme = it
-                            }
-                        )
-                    }
-                )
-                HorizontalDivider()
-            }
-            item {
-                Text("Размер шрифта", style = MaterialTheme.typography.labelMedium,
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-                    color = MaterialTheme.colorScheme.primary)
-                val sizes = listOf("Маленький" to 0.85f, "Обычный" to 1.0f, "Большой" to 1.15f, "Очень большой" to 1.3f)
-                sizes.forEach { (label, scale) ->
-                    ListItem(
-                        headlineContent = { Text(label) },
-                        trailingContent = {
-                            RadioButton(
-                                selected = fontSize == scale,
-                                onClick = { fontSize = scale; prefs.fontSize = scale }
-                            )
-                        },
-                        modifier = Modifier.clickable { fontSize = scale; prefs.fontSize = scale }
+                SettingsSectionCard(modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)) {
+                    SettingsNavItem(
+                        icon = Icons.Default.Person,
+                        iconTint = MaterialTheme.colorScheme.primary,
+                        title = "Account",
+                        subtitle = "Username, Bio",
+                        onClick = onBack // Back to ProfileScreen which IS the Account screen
+                    )
+                    SettingsDivider()
+                    SettingsNavItem(
+                        icon = Icons.Default.ChatBubbleOutline,
+                        iconTint = androidx.compose.ui.graphics.Color(0xFF2196F3),
+                        title = "Chat Settings",
+                        subtitle = "Theme, Font Size",
+                        onClick = onChatSettingsClick
+                    )
+                    SettingsDivider()
+                    SettingsNavItem(
+                        icon = Icons.Default.Lock,
+                        iconTint = androidx.compose.ui.graphics.Color(0xFF4CAF50),
+                        title = "Privacy & Security",
+                        subtitle = "App Lock, Sessions",
+                        onClick = onPrivacyClick
+                    )
+                    SettingsDivider()
+                    SettingsNavItem(
+                        icon = Icons.Default.Notifications,
+                        iconTint = androidx.compose.ui.graphics.Color(0xFFFF5722),
+                        title = "Notifications",
+                        subtitle = "Sounds, Badges",
+                        onClick = onNotificationsClick
+                    )
+                    SettingsDivider()
+                    SettingsNavItem(
+                        icon = Icons.Default.Devices,
+                        iconTint = androidx.compose.ui.graphics.Color(0xFF9C27B0),
+                        title = "Devices",
+                        subtitle = "Manage connected devices",
+                        onClick = onSessionsClick
+                    )
+                    SettingsDivider()
+                    SettingsNavItem(
+                        icon = Icons.Default.Storage,
+                        iconTint = androidx.compose.ui.graphics.Color(0xFF2196F3),
+                        title = "Data and Storage",
+                        subtitle = "Media download settings",
+                        onClick = onDataStorageClick
+                    )
+                    SettingsDivider()
+                    SettingsNavItem(
+                        icon = Icons.Default.BatteryAlert,
+                        iconTint = androidx.compose.ui.graphics.Color(0xFFFF9800),
+                        title = "Power Saving",
+                        subtitle = "Reduce power usage on low charge",
+                        onClick = onPowerSavingClick
+                    )
+                    SettingsDivider()
+                    SettingsNavItem(
+                        icon = Icons.Default.Language,
+                        iconTint = androidx.compose.ui.graphics.Color(0xFF9C27B0),
+                        title = "Language",
+                        subtitle = "English",
+                        onClick = {}
                     )
                 }
-                HorizontalDivider()
             }
+
+            // Section 2: App info
             item {
-                ListItem(
-                    headlineContent = { Text("Звук уведомлений") },
-                    leadingContent = { Icon(Icons.Filled.Notifications, contentDescription = null) },
-                    trailingContent = {
-                        Switch(
-                            checked = notificationSound,
-                            onCheckedChange = {
-                                notificationSound = it
-                                prefs.notificationSound = it
-                            }
-                        )
-                    }
-                )
-                HorizontalDivider()
-            }
-            item {
-                ListItem(
-                    headlineContent = { Text("Блокировка приложения") },
-                    supportingContent = { Text(if (appLockEnabled) "PIN включён" else "Выключена") },
-                    leadingContent = { Icon(Icons.Filled.Lock, contentDescription = null) },
-                    trailingContent = {
-                        Switch(
-                            checked = appLockEnabled,
-                            onCheckedChange = {
-                                appLockEnabled = it
-                                if (it) {
-                                    showPinDialog = true
-                                } else {
-                                    prefs.appLockEnabled = false
-                                    prefs.pinHash = null
-                                }
-                            }
-                        )
-                    }
-                )
-                HorizontalDivider()
-            }
-            item {
-                ListItem(
-                    headlineContent = { Text("Активные сессии") },
-                    supportingContent = { Text("Управление устройствами") },
-                    leadingContent = { Icon(Icons.Filled.Devices, contentDescription = null) },
-                    modifier = Modifier.clickable { onSessionsClick() }
-                )
-                HorizontalDivider()
+                SettingsSectionCard(modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)) {
+                    SettingsNavItem(
+                        icon = Icons.Default.Info,
+                        iconTint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        title = "About Paprika",
+                        subtitle = "Version, Licenses",
+                        showArrow = false,
+                        onClick = {}
+                    )
+                }
             }
         }
     }
+}
+
+@Composable
+fun SettingsSectionCard(
+    modifier: Modifier = Modifier,
+    content: @Composable ColumnScope.() -> Unit
+) {
+    Card(
+        modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+    ) {
+        Column(content = content)
+    }
+}
+
+@Composable
+fun SettingsNavItem(
+    icon: ImageVector,
+    iconTint: androidx.compose.ui.graphics.Color,
+    title: String,
+    subtitle: String,
+    showArrow: Boolean = true,
+    trailingContent: @Composable (() -> Unit)? = null,
+    onClick: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(horizontal = 16.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Surface(
+            shape = RoundedCornerShape(10.dp),
+            color = iconTint.copy(alpha = 0.15f),
+            modifier = Modifier.size(40.dp)
+        ) {
+            Box(contentAlignment = Alignment.Center) {
+                Icon(icon, contentDescription = null, tint = iconTint, modifier = Modifier.size(22.dp))
+            }
+        }
+        Spacer(modifier = Modifier.width(14.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(text = title, style = MaterialTheme.typography.bodyLarge)
+            Text(text = subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        if (trailingContent != null) {
+            trailingContent()
+        } else if (showArrow) {
+            Icon(
+                Icons.AutoMirrored.Filled.ArrowForwardIos,
+                contentDescription = null,
+                modifier = Modifier.size(14.dp),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
+            )
+        }
+    }
+}
+
+@Composable
+fun SettingsDivider() {
+    HorizontalDivider(
+        modifier = Modifier.padding(start = 70.dp),
+        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.1f)
+    )
 }

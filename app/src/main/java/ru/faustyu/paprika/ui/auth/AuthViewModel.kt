@@ -172,6 +172,14 @@ class AuthViewModel : ViewModel() {
         val serverMsg = body?.let {
             runCatching { Gson().fromJson(it, ErrorBody::class.java).error }.getOrNull()
         }
-        return serverMsg ?: "Ошибка $code"
+        if (serverMsg != null) return serverMsg
+        return when (code) {
+            409 -> "Этот логин уже занят — выберите другой"
+            429 -> "Слишком много попыток — подождите немного"
+            401, 403 -> "Неверный логин или ключ устройства"
+            404 -> "Пользователь не найден"
+            500 -> "Ошибка сервера — попробуйте позже"
+            else -> "Ошибка $code"
+        }
     }
 }
