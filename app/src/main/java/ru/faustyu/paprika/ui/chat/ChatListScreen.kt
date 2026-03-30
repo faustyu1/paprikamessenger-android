@@ -5,6 +5,7 @@ import androidx.compose.animation.expandVertically
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
@@ -35,6 +36,8 @@ import coil.request.ImageRequest
 import ru.faustyu.paprika.R
 import ru.faustyu.paprika.data.network.ChatDto
 import ru.faustyu.paprika.data.network.NetworkModule
+import ru.faustyu.paprika.data.network.Story
+import ru.faustyu.paprika.ui.stories.StoriesViewModel
 
 data class ChatItem(val id: String, val name: String, val lastMessage: String)
 
@@ -47,10 +50,14 @@ fun ChatListScreen(
     onProfileClick: () -> Unit,
     onSettingsClick: () -> Unit = {},
     viewModel: ChatListViewModel = androidx.lifecycle.viewmodel.compose.viewModel(),
+    storiesViewModel: StoriesViewModel = androidx.lifecycle.viewmodel.compose.viewModel(),
     onUrlChanged: (String) -> Unit
 ) {
     val lifecycle = LocalLifecycleOwner.current.lifecycle
-    LaunchedEffect(Unit) { viewModel.loadChats() }
+    LaunchedEffect(Unit) {
+        viewModel.loadChats()
+        storiesViewModel.loadStories()
+    }
     DisposableEffect(lifecycle) {
         val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) viewModel.loadChats()
@@ -60,18 +67,19 @@ fun ChatListScreen(
     }
 
     val chats = viewModel.chats
+    val stories = storiesViewModel.stories
     val archivedChats = remember(chats) { chats.filter { it.is_archived } }
     val regularChats = remember(chats) {
         chats.filter { !it.is_archived }
             .sortedWith(compareByDescending<ChatDto> { it.is_pinned }.thenByDescending { it.last_message_at })
             .filter { it.last_message_at > 0 || it.id == 1L }
     }
+    val hasStories = stories.isNotEmpty()
     val hasArchived = archivedChats.isNotEmpty()
 
     val snackbarHostState = remember { SnackbarHostState() }
-    val errorMsg = viewModel.error
-    LaunchedEffect(errorMsg) {
-        if (errorMsg != null) snackbarHostState.showSnackbar(errorMsg)
+    LaunchedEffect(viewModel.error) {
+        viewModel.error?.let { snackbarHostState.showSnackbar(it) }
     }
 
     var debugTaps by remember { mutableIntStateOf(0) }
@@ -82,10 +90,15 @@ fun ChatListScreen(
 
     val listState = rememberLazyListState()
 
-    // After chats first load, if there are archived chats, hide the archived row by starting below it
-    LaunchedEffect(hasArchived) {
-        if (hasArchived && listState.firstVisibleItemIndex == 0 && listState.firstVisibleItemScrollOffset == 0) {
-            listState.scrollToItem(1)
+    // Track number of hidden-above rows; once set, don't re-scroll
+    var initialScrollApplied by remember { mutableStateOf(false) }
+    LaunchedEffect(hasStories, hasArchived) {
+        if (!initialScrollApplied) {
+            val hiddenRows = (if (hasStories) 1 else 0) + (if (hasArchived) 1 else 0)
+            if (hiddenRows > 0) {
+                listState.scrollToItem(hiddenRows)
+                initialScrollApplied = true
+            }
         }
     }
 
@@ -152,176 +165,268 @@ fun ChatListScreen(
             }
         }
     ) { padding ->
-        Column(modifier = Modifier.padding(padding)) {
-            // ── Stories bar ───────────────────────────────────────────────
-            ru.faustyu.paprika.ui.stories.StoriesBar(
-                myAvatarUrl = viewModel.currentUser?.avatar?.takeIf { it.isNotBlank() }?.let { av ->
-                    if (av.startsWith("http")) av else NetworkModule.baseUrl.removeSuffix("/") + av
-                },
-                myName = viewModel.currentUser?.let { u ->
-                    u.first_name?.takeIf { it.isNotBlank() } ?: u.username
-                } ?: "My Story",
-                onStoryClick = {}
-            )
+        LazyColumn(
+            state = listState,
+            modifier = Modifier.fillMaxSize().padding(padding)
+        ) {
+
+            // ── [hidden above] Stories row — only if stories exist ────────
+            if (hasStories) {
+                item(key = "stories_row") {
+                    CompactStoriesRow(
+                        stories = stories,
+                        myAvatarUrl = viewModel.currentUser?.avatar?.takeIf { it.isNotBlank() }?.let { av ->
+                            if (av.startsWith("http")) av else NetworkModule.baseUrl.removeSuffix("/") + av
+                        },
+                        myName = viewModel.currentUser?.let { u ->
+                            u.first_name?.takeIf { it.isNotBlank() } ?: u.username
+                        } ?: "My"
+                    )
+                    HorizontalDivider()
+                }
+            }
+
+            // ── [hidden above] Archived chats row ─────────────────────────
+            if (hasArchived) {
+                item(key = "archived_row") {
+                    val totalUnread = archivedChats.sumOf { it.unread_count }
+                    val subtitle = archivedChats.take(4).joinToString(", ") { it.title }
+
+                    ListItem(
+                        headlineContent = {
+                            Text("Archived Chats", fontWeight = FontWeight.Medium)
+                        },
+                        supportingContent = {
+                            Text(
+                                subtitle,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        },
+                        leadingContent = {
+                            Box(
+                                modifier = Modifier
+                                    .size(48.dp)
+                                    .background(
+                                        Brush.linearGradient(listOf(Color(0xFF4CAF50), Color(0xFF00BCD4))),
+                                        CircleShape
+                                    )
+                                    .padding(2.dp)
+                                    .background(MaterialTheme.colorScheme.surface, CircleShape)
+                                    .padding(2.dp)
+                                    .background(MaterialTheme.colorScheme.surfaceVariant, CircleShape),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    Icons.Default.Archive,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(22.dp)
+                                )
+                            }
+                        },
+                        trailingContent = {
+                            if (totalUnread > 0) {
+                                Badge(
+                                    containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                                    contentColor = MaterialTheme.colorScheme.onSecondaryContainer
+                                ) { Text(totalUnread.toString()) }
+                            }
+                        },
+                        modifier = Modifier.clickable { showArchivedExpanded = !showArchivedExpanded }
+                    )
+                    HorizontalDivider()
+
+                    AnimatedVisibility(
+                        visible = showArchivedExpanded,
+                        enter = expandVertically(),
+                        exit = shrinkVertically()
+                    ) {
+                        Column {
+                            archivedChats.sortedByDescending { it.last_message_at }.forEach { chat ->
+                                ChatRow(
+                                    chat = chat,
+                                    typingUser = viewModel.typingInChat[chat.id],
+                                    showDropdown = showDropdownFor == chat.id,
+                                    onDismissDropdown = { showDropdownFor = null },
+                                    onClick = { onChatClick(if (chat.id == 1L) "paprika_system" else chat.id.toString()) },
+                                    onLongClick = { showDropdownFor = chat.id },
+                                    onPin = { viewModel.pinChat(chat.id.toString()); showDropdownFor = null },
+                                    onArchive = { viewModel.archiveChat(chat.id.toString()); showDropdownFor = null },
+                                    onMute = { viewModel.muteChat(chat.id.toString(), System.currentTimeMillis() / 1000 + 28800); showDropdownFor = null }
+                                )
+                                HorizontalDivider()
+                            }
+                        }
+                    }
+                }
+            }
 
             // ── Inline search bar ─────────────────────────────────────────
-            Surface(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 12.dp, vertical = 6.dp)
-                    .clickable { onSearchClick() },
-                shape = RoundedCornerShape(20.dp),
-                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
-            ) {
-                Row(
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
-                    verticalAlignment = Alignment.CenterVertically
+            item(key = "search_bar") {
+                Surface(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 12.dp, vertical = 6.dp)
+                        .clickable { onSearchClick() },
+                    shape = RoundedCornerShape(20.dp),
+                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
                 ) {
-                    Icon(
-                        Icons.Default.Search,
+                    Row(
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(Icons.Default.Search, null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.width(10.dp))
+                        Text("Search Chats", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
+            }
+
+            // ── Regular chat list ─────────────────────────────────────────
+            items(regularChats, key = { it.id }) { chat ->
+                ChatRow(
+                    chat = chat,
+                    typingUser = viewModel.typingInChat[chat.id],
+                    showDropdown = showDropdownFor == chat.id,
+                    onDismissDropdown = { showDropdownFor = null },
+                    onClick = { onChatClick(if (chat.id == 1L) "paprika_system" else chat.id.toString()) },
+                    onLongClick = { showDropdownFor = chat.id },
+                    onPin = { viewModel.pinChat(chat.id.toString()); showDropdownFor = null },
+                    onArchive = { viewModel.archiveChat(chat.id.toString()); showDropdownFor = null },
+                    onMute = { viewModel.muteChat(chat.id.toString(), System.currentTimeMillis() / 1000 + 28800); showDropdownFor = null }
+                )
+                HorizontalDivider()
+            }
+        }
+    }
+}
+
+// ── Compact stories row ───────────────────────────────────────────────────────
+
+private val storyRingBrush = Brush.linearGradient(listOf(Color(0xFF4CAF50), Color(0xFF00BCD4)))
+private val storyRingSeenColor = Color(0xFF555555)
+
+@Composable
+private fun CompactStoriesRow(
+    stories: List<Story>,
+    myAvatarUrl: String?,
+    myName: String
+) {
+    androidx.compose.foundation.lazy.LazyRow(
+        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 8.dp),
+        horizontalArrangement = Arrangement.spacedBy(6.dp)
+    ) {
+        // My Story — always first
+        item {
+            CompactStoryCircle(
+                imageUrl = myAvatarUrl,
+                label = myName,
+                showRing = false,
+                showAddBadge = true,
+                onClick = {}
+            )
+        }
+        items(stories) { story ->
+            val url = remember(story.media_url) {
+                if (story.media_url.startsWith("http") || story.media_url.startsWith("content://"))
+                    story.media_url
+                else NetworkModule.baseUrl.removeSuffix("/") + story.media_url
+            }
+            CompactStoryCircle(
+                imageUrl = url,
+                label = "user_${story.user_id}",
+                showRing = true,
+                showAddBadge = false,
+                onClick = {}
+            )
+        }
+    }
+}
+
+@Composable
+private fun CompactStoryCircle(
+    imageUrl: String?,
+    label: String,
+    showRing: Boolean,
+    showAddBadge: Boolean,
+    onClick: () -> Unit
+) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier.width(52.dp).clickable(onClick = onClick)
+    ) {
+        Box(modifier = Modifier.size(46.dp), contentAlignment = Alignment.BottomEnd) {
+            // Ring + avatar
+            val avatarMod = if (showRing) {
+                Modifier
+                    .size(44.dp)
+                    .background(storyRingBrush, CircleShape)
+                    .padding(2.dp)
+                    .background(MaterialTheme.colorScheme.background, CircleShape)
+                    .padding(1.5.dp)
+                    .clip(CircleShape)
+            } else {
+                Modifier
+                    .size(44.dp)
+                    .border(1.5.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.25f), CircleShape)
+                    .padding(1.5.dp)
+                    .clip(CircleShape)
+            }
+
+            Box(
+                modifier = avatarMod.background(MaterialTheme.colorScheme.surfaceVariant),
+                contentAlignment = Alignment.Center
+            ) {
+                if (!imageUrl.isNullOrBlank()) {
+                    AsyncImage(
+                        model = imageUrl,
                         contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.size(18.dp)
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = ContentScale.Crop
                     )
-                    Spacer(Modifier.width(10.dp))
+                } else {
                     Text(
-                        "Search Chats",
-                        style = MaterialTheme.typography.bodyMedium,
+                        label.take(1).uppercase(),
+                        style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
             }
 
-            // ── Chat list ─────────────────────────────────────────────────
-            LazyColumn(state = listState, modifier = Modifier.fillMaxSize()) {
-
-                // ── Archived chats row (hidden above by default) ──────────
-                if (hasArchived) {
-                    item(key = "archived_row") {
-                        val totalUnread = archivedChats.sumOf { it.unread_count }
-                        val subtitle = archivedChats.take(4).joinToString(", ") { it.title }
-
-                        ListItem(
-                            headlineContent = {
-                                Text("Archived Chats", fontWeight = FontWeight.Medium)
-                            },
-                            supportingContent = {
-                                Text(
-                                    subtitle,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis,
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            },
-                            leadingContent = {
-                                Box(
-                                    modifier = Modifier
-                                        .size(48.dp)
-                                        .background(
-                                            Brush.linearGradient(
-                                                listOf(Color(0xFF4CAF50), Color(0xFF00BCD4))
-                                            ),
-                                            CircleShape
-                                        )
-                                        .padding(2.dp)
-                                        .background(MaterialTheme.colorScheme.surface, CircleShape),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Box(
-                                        modifier = Modifier
-                                            .size(44.dp)
-                                            .background(
-                                                MaterialTheme.colorScheme.surfaceVariant,
-                                                CircleShape
-                                            ),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        Icon(
-                                            Icons.Default.Archive,
-                                            contentDescription = null,
-                                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                            modifier = Modifier.size(24.dp)
-                                        )
-                                    }
-                                }
-                            },
-                            trailingContent = {
-                                if (totalUnread > 0) {
-                                    Badge(
-                                        containerColor = MaterialTheme.colorScheme.secondaryContainer,
-                                        contentColor = MaterialTheme.colorScheme.onSecondaryContainer
-                                    ) {
-                                        Text(totalUnread.toString())
-                                    }
-                                }
-                            },
-                            modifier = Modifier.clickable {
-                                showArchivedExpanded = !showArchivedExpanded
-                            }
-                        )
-                        HorizontalDivider()
-
-                        // Expandable archived chats list
-                        AnimatedVisibility(
-                            visible = showArchivedExpanded,
-                            enter = expandVertically(),
-                            exit = shrinkVertically()
-                        ) {
-                            Column {
-                                archivedChats.sortedByDescending { it.last_message_at }.forEach { chat ->
-                                    ChatRow(
-                                        chat = chat,
-                                        typingUser = viewModel.typingInChat[chat.id],
-                                        isPinned = false,
-                                        showDropdown = showDropdownFor == chat.id,
-                                        onDismissDropdown = { showDropdownFor = null },
-                                        onClick = {
-                                            val idStr = if (chat.id == 1L) "paprika_system" else chat.id.toString()
-                                            onChatClick(idStr)
-                                        },
-                                        onLongClick = { showDropdownFor = chat.id },
-                                        onPin = { viewModel.pinChat(chat.id.toString()); showDropdownFor = null },
-                                        onArchive = { viewModel.archiveChat(chat.id.toString()); showDropdownFor = null },
-                                        onMute = { viewModel.muteChat(chat.id.toString(), System.currentTimeMillis() / 1000 + 28800); showDropdownFor = null }
-                                    )
-                                    HorizontalDivider()
-                                }
-                            }
-                        }
-                    }
-                }
-
-                // ── Regular chats ─────────────────────────────────────────
-                items(regularChats, key = { it.id }) { chat ->
-                    ChatRow(
-                        chat = chat,
-                        typingUser = viewModel.typingInChat[chat.id],
-                        isPinned = chat.is_pinned,
-                        showDropdown = showDropdownFor == chat.id,
-                        onDismissDropdown = { showDropdownFor = null },
-                        onClick = {
-                            val idStr = if (chat.id == 1L) "paprika_system" else chat.id.toString()
-                            onChatClick(idStr)
-                        },
-                        onLongClick = { showDropdownFor = chat.id },
-                        onPin = { viewModel.pinChat(chat.id.toString()); showDropdownFor = null },
-                        onArchive = { viewModel.archiveChat(chat.id.toString()); showDropdownFor = null },
-                        onMute = { viewModel.muteChat(chat.id.toString(), System.currentTimeMillis() / 1000 + 28800); showDropdownFor = null }
-                    )
-                    HorizontalDivider()
+            // Add badge for My Story
+            if (showAddBadge) {
+                Box(
+                    modifier = Modifier
+                        .size(16.dp)
+                        .background(MaterialTheme.colorScheme.primary, CircleShape)
+                        .border(1.dp, MaterialTheme.colorScheme.background, CircleShape),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(Icons.Default.Add, null, tint = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.size(11.dp))
                 }
             }
         }
+        Spacer(Modifier.height(3.dp))
+        Text(
+            label,
+            style = MaterialTheme.typography.labelSmall,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            color = MaterialTheme.colorScheme.onSurface
+        )
     }
 }
+
+// ── Chat row ──────────────────────────────────────────────────────────────────
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun ChatRow(
     chat: ChatDto,
     typingUser: String?,
-    isPinned: Boolean,
     showDropdown: Boolean,
     onDismissDropdown: () -> Unit,
     onClick: () -> Unit,
@@ -337,50 +442,37 @@ private fun ChatRow(
         }
     }
     val timeString = remember(chat.last_message_at) {
-        if (chat.last_message_at <= 0) ""
-        else {
-            val instant = java.time.Instant.ofEpochSecond(chat.last_message_at)
-            val now = java.time.Instant.now()
-            val zoneId = java.time.ZoneId.systemDefault()
-            val daysDiff = java.time.Duration.between(
-                instant.atZone(zoneId).toLocalDate().atStartOfDay(zoneId).toInstant(),
-                now.atZone(zoneId).toLocalDate().atStartOfDay(zoneId).toInstant()
-            ).toDays()
-            when {
-                daysDiff == 0L -> java.time.format.DateTimeFormatter.ofPattern("HH:mm").format(instant.atZone(zoneId))
-                daysDiff == 1L -> "Yesterday"
-                daysDiff < 7L -> java.time.format.DateTimeFormatter.ofPattern("EEE").format(instant.atZone(zoneId))
-                else -> java.time.format.DateTimeFormatter.ofPattern("dd/MM/yy").format(instant.atZone(zoneId))
-            }
+        if (chat.last_message_at <= 0) return@remember ""
+        val instant = java.time.Instant.ofEpochSecond(chat.last_message_at)
+        val zone = java.time.ZoneId.systemDefault()
+        val nowDate = java.time.LocalDate.now(zone)
+        val msgDate = instant.atZone(zone).toLocalDate()
+        val daysDiff = msgDate.until(nowDate, java.time.temporal.ChronoUnit.DAYS)
+        when {
+            daysDiff == 0L -> java.time.format.DateTimeFormatter.ofPattern("HH:mm").format(instant.atZone(zone))
+            daysDiff == 1L -> "Yesterday"
+            daysDiff < 7L -> java.time.format.DateTimeFormatter.ofPattern("EEE").format(instant.atZone(zone))
+            else -> java.time.format.DateTimeFormatter.ofPattern("dd/MM/yy").format(instant.atZone(zone))
         }
     }
+    val isMuted = chat.mute_until > System.currentTimeMillis() / 1000
 
     Box {
         ListItem(
             headlineContent = {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    if (isPinned) {
-                        Icon(
-                            Icons.Default.PushPin,
-                            contentDescription = null,
-                            modifier = Modifier.size(14.dp).padding(end = 2.dp),
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    if (chat.is_pinned) {
+                        Icon(Icons.Default.PushPin, null, Modifier.size(13.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                     Text(chat.title, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
             },
             supportingContent = {
                 if (typingUser != null) {
-                    Text(
-                        "$typingUser печатает...",
-                        color = MaterialTheme.colorScheme.primary,
-                        maxLines = 1,
-                        style = MaterialTheme.typography.bodySmall
-                    )
+                    Text("$typingUser печатает...", color = MaterialTheme.colorScheme.primary, maxLines = 1, style = MaterialTheme.typography.bodySmall)
                 } else {
                     val preview = chat.last_message_preview ?: ""
-                    if (preview.startsWith("/media/") || (preview.startsWith("http") && !preview.startsWith("http://localhost"))) {
+                    if (preview.startsWith("/media/") || (preview.startsWith("http") && preview.contains("/media/"))) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Icon(Icons.Filled.Image, null, Modifier.size(14.dp), tint = MaterialTheme.colorScheme.primary)
                             Spacer(Modifier.width(3.dp))
@@ -396,20 +488,16 @@ private fun ChatRow(
                     AsyncImage(
                         model = ImageRequest.Builder(context).data(avatarUrl).crossfade(true).build(),
                         contentDescription = null,
-                        modifier = Modifier.size(48.dp).clip(CircleShape),
+                        modifier = Modifier.size(52.dp).clip(CircleShape),
                         contentScale = ContentScale.Crop
                     )
                 } else {
                     Box(
-                        modifier = Modifier.size(48.dp).clip(CircleShape)
+                        modifier = Modifier.size(52.dp).clip(CircleShape)
                             .background(MaterialTheme.colorScheme.primaryContainer),
                         contentAlignment = Alignment.Center
                     ) {
-                        Text(
-                            chat.title.take(1).uppercase(),
-                            style = MaterialTheme.typography.titleMedium,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer
-                        )
+                        Text(chat.title.take(1).uppercase(), style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onPrimaryContainer)
                     }
                 }
             },
@@ -417,12 +505,9 @@ private fun ChatRow(
                 Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Text(timeString, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     if (chat.unread_count > 0) {
-                        val isMuted = chat.mute_until > System.currentTimeMillis() / 1000
                         Badge(
-                            containerColor = if (isMuted) MaterialTheme.colorScheme.secondaryContainer
-                                            else MaterialTheme.colorScheme.primary,
-                            contentColor = if (isMuted) MaterialTheme.colorScheme.onSecondaryContainer
-                                           else MaterialTheme.colorScheme.onPrimary
+                            containerColor = if (isMuted) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.primary,
+                            contentColor = if (isMuted) MaterialTheme.colorScheme.onSecondaryContainer else MaterialTheme.colorScheme.onPrimary
                         ) { Text(chat.unread_count.toString()) }
                     }
                 }
@@ -432,7 +517,7 @@ private fun ChatRow(
 
         DropdownMenu(expanded = showDropdown, onDismissRequest = onDismissDropdown) {
             DropdownMenuItem(
-                text = { Text(if (isPinned) "Открепить" else "Закрепить") },
+                text = { Text(if (chat.is_pinned) "Открепить" else "Закрепить") },
                 leadingIcon = { Icon(Icons.Default.PushPin, null) },
                 onClick = onPin
             )
