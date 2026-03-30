@@ -393,7 +393,9 @@ class MainActivity : androidx.appcompat.app.AppCompatActivity() {
                         }
 
                         composable("contacts") {
-                            ru.faustyu.paprika.ui.contacts.ContactsScreen()
+                            ru.faustyu.paprika.ui.contacts.ContactsScreen(
+                                onContactClick = { userId -> navController.navigate("user_profile/$userId") }
+                            )
                         }
 
                         composable("my_profile") {

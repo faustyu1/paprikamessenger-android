@@ -77,7 +77,14 @@ interface ApiService {
     @GET("/users/search")
     suspend fun searchUsers(@Query("q") query: String): Response<List<UserPublic>>
 
+    @GET("/contacts")
+    suspend fun getContacts(): Response<List<ContactEntry>>
 
+    @POST("/contacts")
+    suspend fun addContact(@Body body: AddContactRequest): Response<ContactEntry>
+
+    @DELETE("/contacts/{id}")
+    suspend fun deleteContact(@retrofit2.http.Path("id") userId: Long): Response<Unit>
 
     @POST("/chats")
     suspend fun createChat(@Body request: CreateChatRequest): Response<Chat>
@@ -298,6 +305,20 @@ data class CreateStoryRequest(
     val media_type: String,
     val caption: String
 )
+
+data class ContactEntry(
+    val id: Long,
+    val user_id: Long,
+    val username: String,
+    val first_name: String? = null,
+    val last_name: String? = null,
+    val avatar: String? = null,
+    val is_online: Boolean = false,
+    val last_seen: Long = 0,
+    val bio: String? = null
+)
+
+data class AddContactRequest(val username: String)
 
 data class UserPublic(
     val id: Long,
