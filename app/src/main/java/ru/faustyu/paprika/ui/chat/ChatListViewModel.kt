@@ -1,19 +1,29 @@
 package ru.faustyu.paprika.ui.chat
 
-import androidx.compose.runtime.mutableStateOf
-import androidx.lifecycle.viewModelScope
-import kotlinx.coroutines.launch
-import ru.faustyu.paprika.data.network.ChatDto
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.setValue
 import androidx.compose.runtime.mutableStateMapOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
+import ru.faustyu.paprika.data.db.ChatEntity
+import ru.faustyu.paprika.data.db.DatabaseModule
 import ru.faustyu.paprika.data.network.AppWebSocketManager
+import ru.faustyu.paprika.data.network.ChatDto
+import ru.faustyu.paprika.data.network.NetworkModule
+import ru.faustyu.paprika.data.network.MuteChatRequest
+import ru.faustyu.paprika.data.network.UserPublic
+import ru.faustyu.paprika.util.AppNotificationHelper
 
 class ChatListViewModel(application: android.app.Application) : androidx.lifecycle.AndroidViewModel(application) {
+
+    private val chatDao = DatabaseModule.provideDatabase(application).chatDao()
+
     var chats by mutableStateOf<List<ChatDto>>(emptyList())
         private set
 
-    var currentUser by mutableStateOf<ru.faustyu.paprika.data.network.UserPublic?>(null)
+    var currentUser by mutableStateOf<UserPublic?>(null)
         private set
 
     var isLoading by mutableStateOf(false)
@@ -25,7 +35,16 @@ class ChatListViewModel(application: android.app.Application) : androidx.lifecyc
     val typingInChat = mutableStateMapOf<Long, String>()
 
     init {
+        // Load cached chats from Room immediately (instant display)
+        viewModelScope.launch {
+            val cached = chatDao.getAllChats().first()
+            if (cached.isNotEmpty()) {
+                chats = cached.map { it.toDto() }
+            }
+        }
+
         loadChats()
+
         AppWebSocketManager.addListener("chatlist_vm") { event ->
             val type = event["event"] as? String ?: return@addListener
             if (type == "user:typing") {
@@ -43,20 +62,24 @@ class ChatListViewModel(application: android.app.Application) : androidx.lifecyc
     fun loadChats() {
         viewModelScope.launch {
             isLoading = true
+            error = null
             try {
-                val response = ru.faustyu.paprika.data.network.NetworkModule.api.getChats()
+                val response = NetworkModule.api.getChats()
                 if (response.isSuccessful) {
-                    chats = response.body() ?: emptyList()
-                    val totalUnread = chats.sumOf { it.unread_count }.toInt()
-                    ru.faustyu.paprika.util.AppNotificationHelper.updateBadge(getApplication(), totalUnread)
+                    val fresh = response.body() ?: emptyList()
+                    chats = fresh
+                    // Persist to Room cache
+                    chatDao.clearAll()
+                    chatDao.insertChats(fresh.map { it.toEntity() })
+                    AppNotificationHelper.updateBadge(getApplication(), fresh.sumOf { it.unread_count }.toInt())
                 }
 
-                val userResponse = ru.faustyu.paprika.data.network.NetworkModule.api.getMyProfile()
-                if (userResponse.isSuccessful) {
-                    currentUser = userResponse.body()
-                }
+                val userResp = NetworkModule.api.getMyProfile()
+                if (userResp.isSuccessful) currentUser = userResp.body()
+
             } catch (e: Exception) {
-                error = "Нет соединения с сервером"
+                // Show error only if we have no cached data
+                if (chats.isEmpty()) error = "Нет соединения с сервером"
             } finally {
                 isLoading = false
             }
@@ -65,27 +88,19 @@ class ChatListViewModel(application: android.app.Application) : androidx.lifecyc
 
     fun muteChat(chatId: String, muteUntil: Long) {
         viewModelScope.launch {
-            try {
-                ru.faustyu.paprika.data.network.NetworkModule.api.muteChat(chatId, ru.faustyu.paprika.data.network.MuteChatRequest(muteUntil))
-            } catch (_: Exception) {}
+            try { NetworkModule.api.muteChat(chatId, MuteChatRequest(muteUntil)) } catch (_: Exception) {}
         }
     }
 
     fun archiveChat(chatId: String) {
         viewModelScope.launch {
-            try {
-                ru.faustyu.paprika.data.network.NetworkModule.api.archiveChat(chatId)
-                loadChats()
-            } catch (_: Exception) {}
+            try { NetworkModule.api.archiveChat(chatId); loadChats() } catch (_: Exception) {}
         }
     }
 
     fun pinChat(chatId: String) {
         viewModelScope.launch {
-            try {
-                ru.faustyu.paprika.data.network.NetworkModule.api.pinChat(chatId)
-                loadChats()
-            } catch (_: Exception) {}
+            try { NetworkModule.api.pinChat(chatId); loadChats() } catch (_: Exception) {}
         }
     }
 
@@ -94,3 +109,31 @@ class ChatListViewModel(application: android.app.Application) : androidx.lifecyc
         AppWebSocketManager.removeListener("chatlist_vm")
     }
 }
+
+private fun ChatEntity.toDto() = ChatDto(
+    id = id,
+    type = type,
+    title = title,
+    description = "",
+    avatar = avatar,
+    owner_id = 0,
+    last_message_preview = lastMessagePreview,
+    last_message_at = lastMessageAt,
+    unread_count = unreadCount,
+    mute_until = muteUntil,
+    is_archived = isArchived,
+    is_pinned = isPinned
+)
+
+private fun ChatDto.toEntity() = ChatEntity(
+    id = id,
+    type = type,
+    title = title,
+    avatar = avatar,
+    lastMessagePreview = last_message_preview,
+    lastMessageAt = last_message_at,
+    unreadCount = unread_count,
+    muteUntil = mute_until,
+    isArchived = is_archived,
+    isPinned = is_pinned
+)

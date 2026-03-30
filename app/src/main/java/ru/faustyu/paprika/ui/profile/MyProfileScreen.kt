@@ -17,6 +17,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -34,7 +36,10 @@ fun MyProfileScreen(
 ) {
     val context = LocalContext.current
 
-    // Refresh profile when screen opens
+    val photoLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri -> uri?.let { viewModel.uploadAvatar(context, it) } }
+
     LaunchedEffect(Unit) { /* ViewModel loads in init */ }
 
     val displayName = buildString {
@@ -130,7 +135,7 @@ fun MyProfileScreen(
                     icon = Icons.Default.AddAPhoto,
                     label = "Set Photo",
                     modifier = Modifier.weight(1f),
-                    onClick = { /* future: pick photo */ }
+                    onClick = { photoLauncher.launch("image/*") }
                 )
                 ProfileActionButton(
                     icon = Icons.Default.Edit,

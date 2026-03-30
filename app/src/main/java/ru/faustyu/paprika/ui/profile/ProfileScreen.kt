@@ -324,14 +324,39 @@ fun ProfileScreen(
             Spacer(modifier = Modifier.height(16.dp))
 
             // Your bio
-            ProfileSectionHeader(text = "Your bio")
+            val bioLimit = 140
+            Row(
+                modifier = Modifier.padding(horizontal = 24.dp).padding(top = 8.dp, bottom = 4.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    "Your bio",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.primary,
+                    fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
+                    modifier = Modifier.weight(1f)
+                )
+                Text(
+                    "${bioLimit - tempBio.length}",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = if (tempBio.length > bioLimit - 15)
+                        MaterialTheme.colorScheme.error
+                    else
+                        MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                )
+            }
             Card(
                 modifier = Modifier.padding(horizontal = 16.dp),
                 shape = RoundedCornerShape(20.dp),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
-                    BasicEditField(value = tempBio, onValueChange = { tempBio = it }, placeholder = "A few lines about yourself...", singleLine = false)
+                    BasicEditField(
+                        value = tempBio,
+                        onValueChange = { if (it.length <= bioLimit) tempBio = it },
+                        placeholder = "A few lines about yourself...",
+                        singleLine = false
+                    )
                 }
             }
             Text(

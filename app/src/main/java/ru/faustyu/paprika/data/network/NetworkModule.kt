@@ -11,6 +11,7 @@ object NetworkModule {
     var baseUrl = "https://paprikaapi.faustyu.xyz/"
 
     private var _api: ApiService? = null
+    private var httpCache: okhttp3.Cache? = null
 
     var authToken: String? = null
 
@@ -19,6 +20,12 @@ object NetworkModule {
 
     /** Called after a silent token refresh so MainActivity can persist the new token */
     var onTokenRefreshed: ((String) -> Unit)? = null
+
+    /** Called from PaprikaApplication.onCreate() before any API calls */
+    fun initCache(cache: okhttp3.Cache) {
+        httpCache = cache
+        _api = null // force client rebuild with cache
+    }
 
     // ── Bare client for auth calls (no auth interceptor, no authenticator — avoids loops) ──
     private val bareClient by lazy {
@@ -65,9 +72,9 @@ object NetworkModule {
             .build()
     }
 
-    private val client by lazy {
+    private fun buildClient(): OkHttpClient {
         val logging = HttpLoggingInterceptor().apply {
-            level = HttpLoggingInterceptor.Level.BODY
+            level = HttpLoggingInterceptor.Level.BASIC
         }
 
         val authInterceptor = okhttp3.Interceptor { chain ->
@@ -78,15 +85,44 @@ object NetworkModule {
             chain.proceed(requestBuilder.build())
         }
 
-        OkHttpClient.Builder()
+        // Rewrite responses to be cacheable for 30 s (stale-while-revalidate feel)
+        val cacheInterceptor = okhttp3.Interceptor { chain ->
+            val response = chain.proceed(chain.request())
+            val noCache = response.header("Cache-Control")
+                ?.contains("no-store") == true
+            if (noCache) response
+            else response.newBuilder()
+                .header("Cache-Control", "public, max-age=30")
+                .build()
+        }
+
+        // When offline, serve stale cache up to 7 days
+        val offlineInterceptor = okhttp3.Interceptor { chain ->
+            var request = chain.request()
+            try {
+                chain.proceed(request)
+            } catch (_: Exception) {
+                request = request.newBuilder()
+                    .header("Cache-Control", "public, only-if-cached, max-stale=${60 * 60 * 24 * 7}")
+                    .build()
+                chain.proceed(request)
+            }
+        }
+
+        return OkHttpClient.Builder()
+            .addInterceptor(offlineInterceptor)
             .addInterceptor(logging)
             .addInterceptor(authInterceptor)
+            .addNetworkInterceptor(cacheInterceptor)
             .authenticator(tokenAuthenticator)
             .protocols(listOf(okhttp3.Protocol.HTTP_1_1))
             .connectTimeout(15, java.util.concurrent.TimeUnit.SECONDS)
             .readTimeout(15, java.util.concurrent.TimeUnit.SECONDS)
+            .apply { httpCache?.let { cache(it) } }
             .build()
     }
+
+    private val client: OkHttpClient get() = buildClient()
 
     val api: ApiService
         get() {
